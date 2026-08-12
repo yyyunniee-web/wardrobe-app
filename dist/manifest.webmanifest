@@ -1,0 +1,13 @@
+{
+  "name": "个人智能穿搭衣橱",
+  "short_name": "穿搭衣橱",
+  "description": "本地存储的智能穿搭衣橱，数据不上云",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#FBF7F0",
+  "theme_color": "#FBF7F0",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
