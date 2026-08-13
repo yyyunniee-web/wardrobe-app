@@ -121,6 +121,12 @@ function $(s,el){ return (el||document).querySelector(s); }
 function $all(s,el){ return Array.prototype.slice.call((el||document).querySelectorAll(s)); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
+/** 仅 Vite DEV（npm run dev）显示 AI 测试配置；生产构建恒为 false */
+function isDevAiConfigUi(){
+  try { return !!(import.meta && import.meta.env && import.meta.env.DEV); }
+  catch(e){ return false; }
+}
+
 /* ---------- Loading / dataStore 衣物桥接 ---------- */
 function showLoading(msg){
   var el = $('#global-loading');
@@ -4540,6 +4546,21 @@ function viewSettings(){
   html += '<div class="text-xs text-mute leading-relaxed">主屏幕打开时可用「同步云端数据」拉取最新衣物与打卡；「检查应用更新」用于获取 Vercel 新版本。</div>';
   html += '</div>';
 
+  // DEV only：AI 测试配置（会话内存；不写 D1、不上传 apiKey）
+  if(isDevAiConfigUi()){
+    var ai = store.aiConfig || {};
+    html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-3" id="dev-ai-config">';
+    html += '<div class="text-sm font-semibold">AI 测试配置 <span class="text-xs font-normal text-warn">仅开发环境</span></div>';
+    html += '<label class="flex items-center gap-2 text-sm text-ink cursor-pointer">';
+    html += '<input id="dev-ai-cloud" type="checkbox" class="rounded border-line"'+(ai.cloudEnabled?' checked':'')+' />';
+    html += '<span>开启 cloudEnabled（订单截图云端解析）</span></label>';
+    html += '<div><div class="text-xs text-mute mb-1">API Key（智谱 / BigModel）</div>';
+    html += '<input id="dev-ai-key" type="password" autocomplete="off" class="w-full bg-paper rounded-xl border border-line p-2.5 text-sm" value="'+esc(ai.apiKey||'')+'" placeholder="仅保存在当前页面内存" /></div>';
+    html += '<button type="button" id="dev-ai-save" class="w-full bg-brand-soft text-brand-dark rounded-xl py-2.5 text-sm font-medium">保存到本页会话</button>';
+    html += '<div class="text-xs text-mute leading-relaxed">不写入数据库、不同步云端；刷新页面后需重新填写。生产构建不会显示本区块。</div>';
+    html += '</div>';
+  }
+
   html += '<div class="text-center text-xs text-mute py-2">衣物数据保存在云端 API</div>';
   html += '<div class="h-6"></div></div>';
   return html;
@@ -4631,6 +4652,22 @@ function bindSettings(){
       // 'updated' 会弹出确认框并由 SW 刷新页面
     });
   });
+
+  var devAiSave = $('#dev-ai-save');
+  if(devAiSave){
+    devAiSave.addEventListener('click', function(){
+      if(!isDevAiConfigUi()) return;
+      var cloudEl = $('#dev-ai-cloud');
+      var keyEl = $('#dev-ai-key');
+      store.aiConfig = store.aiConfig || {};
+      store.aiConfig.cloudEnabled = !!(cloudEl && cloudEl.checked);
+      store.aiConfig.apiKey = keyEl ? String(keyEl.value || '').trim() : '';
+      // 仅会话内存；不调用任何 persist / upload
+      toast(store.aiConfig.cloudEnabled
+        ? (store.aiConfig.apiKey ? 'AI 测试配置已保存（本页会话）' : '已开启云端解析，但 API Key 为空')
+        : '已关闭云端解析（本页会话）');
+    });
+  }
 }
 
 /** 手动同步：重新拉取云端资源并刷新当前页（不改 dataStore 内部实现） */
@@ -4655,6 +4692,8 @@ function reloadCloudData(){
 
 function exportFullBackup(){
   var backup = clone(store);
+  // apiKey 仅会话内存，导出备份时置空，避免落入备份文件
+  if(backup.aiConfig) backup.aiConfig = Object.assign({}, backup.aiConfig, { apiKey: '' });
   backup.exportedAt = new Date().toISOString();
   downloadJSON(backup, '穿搭衣橱_完整备份_'+todayStr()+'.json');
   toast('已导出完整备份');
