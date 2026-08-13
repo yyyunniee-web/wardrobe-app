@@ -3164,8 +3164,8 @@ function viewAnalysis(){
   // 衣物购入时间范围（紧凑卡片）— 骨架优先，始终先渲染
   html += '<div class="bg-white rounded-2xl border border-line px-3 py-2.5 space-y-1.5 mb-3">';
   html += '<div class="text-xs text-mute">衣物购入时间范围</div>';
-  html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-2"><div><div class="text-[10px] text-mute mb-0.5">购入起始日期</div><input id="an-buyStart" type="date" class="w-full bg-paper rounded-xl border border-line px-2.5 py-1.5 text-sm" value="'+esc(analysisFilter.buyStart)+'" /></div>';
-  html += '<div><div class="text-[10px] text-mute mb-0.5">购入结束日期</div><input id="an-buyEnd" type="date" class="w-full bg-paper rounded-xl border border-line px-2.5 py-1.5 text-sm" value="'+esc(analysisFilter.buyEnd)+'" /></div></div>';
+  html += '<div class="grid grid-cols-2 gap-2 min-w-0"><div class="min-w-0"><div class="text-[10px] text-mute mb-0.5">购入起始日期</div><input id="an-buyStart" type="date" class="w-full min-w-0 max-w-full bg-paper rounded-xl border border-line px-2 py-1.5 text-sm" value="'+esc(analysisFilter.buyStart)+'" /></div>';
+  html += '<div class="min-w-0"><div class="text-[10px] text-mute mb-0.5">购入结束日期</div><input id="an-buyEnd" type="date" class="w-full min-w-0 max-w-full bg-paper rounded-xl border border-line px-2 py-1.5 text-sm" value="'+esc(analysisFilter.buyEnd)+'" /></div></div>';
   html += '</div>';
 
   // 其余筛选：已淘汰开关 + 维度

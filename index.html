@@ -310,6 +310,13 @@
     background:transparent; border:none; padding:0.25rem 0.125rem; font-size:0.875rem; font-weight:500;
   }
   .closet-list-back:active{ opacity:0.7; }
+  /* 分析页购入日期：限制 type=date 固有最小宽度，避免撑破卡片 */
+  #an-buyStart,#an-buyEnd{
+    min-width:0;
+    max-width:100%;
+    width:100%;
+    box-sizing:border-box;
+  }
   .ck-confirm-btn:disabled{ opacity:0.45; cursor:not-allowed; }
   .ck-upload-zone{
     border:2px dashed #EDE6DA; border-radius:1rem; background:#FFFCFA;
