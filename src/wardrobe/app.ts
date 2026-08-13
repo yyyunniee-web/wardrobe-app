@@ -1926,7 +1926,6 @@ var closetFilterCat = '';
 var closetSort = 'buyDateDesc'; // 保留兼容，首页概览不再使用精细排序
 var closetListCat = ''; // 非空 = 处于品类独立列表页
 var closetListSort = 'buyDateDesc'; // 列表页独立排序，与首页互不干扰
-var closetSelected = [];
 
 var CLOSET_SORT_GROUPS = [
   ['购买时间','buyDateDesc','buyDateAsc'],
@@ -2048,11 +2047,7 @@ function closetCategoryCardHtml(cat){
     html += '</button>';
   } else {
     items.forEach(function(c){
-      var sel = closetSelected.indexOf(c.id)>=0;
       html += '<div class="closet-cat-thumb cloth-row" data-id="'+c.id+'">';
-      if(closetMode==='active'){
-        html += '<input type="checkbox" class="cloth-sel w-4 h-4 accent-brand" data-id="'+c.id+'" '+(sel?'checked':'')+'/>';
-      }
       if(c.photo) html += imgBox(c.photo, c.category, 'cat', 2);
       else html += imgBox('', c.category, 'cat', 2);
       html += '</div>';
@@ -2063,12 +2058,8 @@ function closetCategoryCardHtml(cat){
 }
 
 function clothListRowHtml(c){
-  var sel = closetSelected.indexOf(c.id)>=0;
   var wearCount = wearCountOf(c.id);
   var html = '<div class="cloth-row bg-white rounded-2xl border border-line p-3 flex items-center gap-3" data-id="'+c.id+'">';
-  if(closetMode==='active'){
-    html += '<input type="checkbox" class="cloth-sel w-5 h-5 accent-brand" data-id="'+c.id+'" '+(sel?'checked':'')+'/>';
-  }
   if(c.photo) html += imgBox(c.photo, c.category, 'list', 2);
   else html += imgBox('', c.category, 'list', 2);
   html += '<div class="flex-1 min-w-0"><div class="text-sm font-medium truncate">'+esc(c.name)+'</div>';
@@ -2099,12 +2090,6 @@ function viewClosetCategoryList(cat){
   html += '<div class="closet-sort-bar" id="closet-list-sort-bar">';
   CLOSET_SORT_GROUPS.forEach(function(g){ html += closetSortUnitHtml(g[0], g[1], g[2], closetListSort); });
   html += '</div>';
-
-  if(closetMode==='active' && list.length){
-    html += '<div class="flex items-center justify-between mb-2 text-xs text-mute">';
-    html += '<label class="flex items-center gap-1.5"><input id="sel-all" type="checkbox" class="w-4 h-4 accent-brand"/> 全选</label>';
-    html += '<button id="batch-export" class="text-brand-dark">批量导出 '+closetSelected.length+' 件</button></div>';
-  }
 
   if(!list.length){
     html += '<div class="text-center text-mute text-sm py-12 bg-white rounded-2xl border border-line">暂无「'+esc(cat)+'」衣物</div>';
@@ -2141,13 +2126,10 @@ function viewClosetHome(){
   html += '<button class="cmode flex-1 py-1.5 rounded-full '+(closetMode==='retired'?'bg-white shadow text-ink':'text-mute')+'" data-m="retired">已淘汰</button>';
   html += '</div>';
 
-  // 批量导出条（首页无精细排序控件）
-  var list = filteredClothes();
-  if(closetMode==='active' && list.length){
-    html += '<div class="flex items-center justify-between mb-2 text-xs text-mute">';
-    html += '<label class="flex items-center gap-1.5"><input id="sel-all" type="checkbox" class="w-4 h-4 accent-brand"/> 全选</label>';
-    html += '<button id="batch-export" class="text-brand-dark">批量导出 '+closetSelected.length+' 件</button></div>';
-  }
+  // 导出入口：默认浏览模式，不展示批量勾选
+  html += '<div class="flex justify-end mb-3">';
+  html += '<button type="button" id="closet-export-all" class="text-xs text-brand-dark">导出全部衣橱数据</button>';
+  html += '</div>';
 
   // 分类卡片：固定顺序；全品类渲染全部，单选仅渲染对应卡片
   html += '<div class="space-y-3">';
@@ -2207,22 +2189,12 @@ function bindCloset(){
     });
   }
 
-  $all('.cmode').forEach(function(b){ b.addEventListener('click', function(){ closetMode=b.dataset.m; closetSelected=[]; render(); }); });
-  $all('.cloth-row').forEach(function(r){ r.addEventListener('click', function(e){
-    if(e.target.classList.contains('cloth-sel')) return;
+  $all('.cmode').forEach(function(b){ b.addEventListener('click', function(){ closetMode=b.dataset.m; render(); }); });
+  $all('.cloth-row').forEach(function(r){ r.addEventListener('click', function(){
     openClothDetail(r.dataset.id);
   }); });
-  $all('.cloth-sel').forEach(function(cb){ cb.addEventListener('change', function(){
-    var id=cb.dataset.id;
-    if(cb.checked){ if(closetSelected.indexOf(id)<0) closetSelected.push(id); } else { closetSelected = closetSelected.filter(function(x){return x!==id;}); }
-    render();
-  }); });
-  var sa = $('#sel-all'); if(sa) sa.addEventListener('change', function(){
-    var pool = closetListCat ? filteredClothesForListPage() : filteredClothes();
-    if(sa.checked){ closetSelected = pool.map(function(c){return c.id;}); } else { closetSelected=[]; }
-    render();
-  });
-  var be = $('#batch-export'); if(be) be.addEventListener('click', batchExport);
+  var exportAllBtn = $('#closet-export-all');
+  if(exportAllBtn) exportAllBtn.addEventListener('click', openClosetExportSheet);
   $all('.cat-add-placeholder').forEach(function(b){
     b.addEventListener('click', function(){
       window._closetPrefillCat = b.dataset.cat || '';
@@ -2614,18 +2586,133 @@ function openClothDetail(id){
 
 function row(k,v){ return '<div class="flex justify-between"><span class="text-mute">'+k+'</span><span>'+esc(v)+'</span></div>'; }
 
-/* ---------- 批量导出 ---------- */
-function batchExport(){
-  if(!closetSelected.length){ toast('请先勾选衣物'); return; }
-  var items = store.clothes.filter(function(c){return closetSelected.indexOf(c.id)>=0;});
-  exportCleanJSON(items, '衣橱导出');
+/* ---------- 衣橱导出（全部云端衣物，无批量勾选） ---------- */
+function photoExtFromUrl(url){
+  if(!url) return 'jpg';
+  var clean = String(url).split('?')[0];
+  var m = clean.match(/\.([a-zA-Z0-9]+)$/);
+  if(!m) return 'jpg';
+  var ext = m[1].toLowerCase();
+  if(['jpg','jpeg','png','webp','gif','heic'].indexOf(ext) < 0) return 'jpg';
+  return ext === 'jpeg' ? 'jpg' : ext;
+}
+
+function clothToExportRecord(c, forCsv){
+  var seasons = Array.isArray(c.seasons) ? c.seasons.slice() : [];
+  var scenes = Array.isArray(c.scenes) ? c.scenes.slice() : [];
+  var tags = seasons.concat(scenes);
+  var photo = c.photo || '';
+  var photoFile = photo ? ('photos/' + c.id + '.' + photoExtFromUrl(photo)) : '';
+  var base = {
+    id: c.id,
+    name: c.name || '',
+    category: c.category || '',
+    brand: c.brand || '',
+    price: (c.price != null && c.price !== '') ? c.price : '',
+    buyDate: c.buyDate || '',
+    seasons: forCsv ? seasons.join('|') : seasons,
+    scenes: forCsv ? scenes.join('|') : scenes,
+    tags: forCsv ? tags.join('|') : tags,
+    color: c.color || '',
+    fabric: c.fabric || '',
+    status: c.status || 'active',
+    photo: photo,
+    photoFile: photoFile,
+    wearCount: wearCountOf(c.id),
+    createdAt: c.createdAt || null,
+    retiredAt: c.retiredAt || null
+  };
+  return base;
+}
+
+function allClothesForExport(){
+  return (store.clothes || []).slice().sort(function(a, b){
+    var da = a.buyDate || '';
+    var db = b.buyDate || '';
+    if(da !== db) return da < db ? 1 : -1;
+    return String(a.name||'').localeCompare(String(b.name||''), 'zh');
+  });
+}
+
+function downloadTextFile(text, filename, mime){
+  var blob = new Blob([text], { type: mime || 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+
+function csvEscape(v){
+  var s = v == null ? '' : String(v);
+  if(/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function exportWardrobeCSV(items, filename){
+  var rows = items.map(function(c){ return clothToExportRecord(c, true); });
+  var cols = ['id','name','category','brand','price','buyDate','seasons','scenes','tags','color','fabric','status','photo','photoFile','wearCount','createdAt','retiredAt'];
+  var lines = [cols.join(',')];
+  rows.forEach(function(r){
+    lines.push(cols.map(function(k){ return csvEscape(r[k]); }).join(','));
+  });
+  downloadTextFile('\uFEFF' + lines.join('\n'), filename + '.csv', 'text/csv;charset=utf-8');
+}
+
+function exportWardrobeJSON(items, filename){
+  var payload = {
+    exportedAt: new Date().toISOString(),
+    count: items.length,
+    note: 'photo 为云端图片 URL；photoFile 为建议本地关联文件名（photos/{id}.{ext}），便于与图片清单对照。',
+    items: items.map(function(c){ return clothToExportRecord(c, false); })
+  };
+  downloadJSON(payload, filename + '.json');
+}
+
+function openClosetExportSheet(){
+  var items = allClothesForExport();
+  var withPhoto = items.filter(function(c){ return !!(c.photo); }).length;
+  var html = sheetHeader('导出全部衣橱数据');
+  html += '<div class="px-5 space-y-3">';
+  html += '<div class="text-sm text-ink leading-relaxed">将导出当前已同步的全部衣物（含在用与已淘汰），共 <span class="font-semibold text-brand-dark">'+items.length+'</span> 件；其中含图片链接 <span class="font-semibold">'+withPhoto+'</span> 件。</div>';
+  html += '<div class="text-xs text-mute bg-paper rounded-xl p-3 leading-relaxed">JSON 适合给 AI 分析；CSV 适合表格查看。图片以 photo URL 与 photoFile 字段关联，不改动云端数据。</div>';
+  if(!items.length){
+    html += '<div class="text-sm text-mute text-center py-6">暂无衣物可导出</div>';
+  } else {
+    html += '<button type="button" id="export-json" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium">导出 JSON</button>';
+    html += '<button type="button" id="export-csv" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium text-brand-dark">导出 CSV</button>';
+    html += '<button type="button" id="export-both" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium">同时导出 JSON + CSV</button>';
+  }
+  html += '<div class="h-2"></div></div>';
+  openSheet(html);
+  var stamp = '衣橱全部导出_' + todayStr();
+  var ej = $('#export-json');
+  if(ej) ej.addEventListener('click', function(){
+    exportWardrobeJSON(items, stamp);
+    toast('已导出 JSON');
+  });
+  var ec = $('#export-csv');
+  if(ec) ec.addEventListener('click', function(){
+    exportWardrobeCSV(items, stamp);
+    toast('已导出 CSV');
+  });
+  var eb = $('#export-both');
+  if(eb) eb.addEventListener('click', function(){
+    exportWardrobeJSON(items, stamp);
+    setTimeout(function(){
+      exportWardrobeCSV(items, stamp);
+      toast('已导出 JSON 与 CSV');
+    }, 200);
+  });
 }
 
 function exportCleanJSON(items, filename){
   var clean = items.map(function(c){
     return {
-      name:c.name, category:c.category, seasons:c.seasons||[], scenes:c.scenes||[],
-      color:c.color, fabric:c.fabric, buyDate:c.buyDate, price:c.price,
+      name:c.name, category:c.category, brand:c.brand||'', seasons:c.seasons||[], scenes:c.scenes||[],
+      color:c.color, fabric:c.fabric, buyDate:c.buyDate, price:c.price, photo:c.photo||'',
       wearCount: wearCountOf(c.id), status:c.status
     };
   });
