@@ -2,8 +2,10 @@
  * - 仅缓存同源静态壳资源
  * - 导航/HTML/JS/CSS：network-first，避免长期卡在旧版
  * - 不拦截跨域 API（Cloudflare Worker）
+ * - CACHE 名在 vite build 时会被打上时间戳，保证每次发布 sw.js 字节变化
  */
-const CACHE = 'wardrobe-shell-v3';
+/* __SW_BUILD_ID__ */
+const CACHE = 'wardrobe-shell-v4';
 const PRECACHE = [
   '/',
   '/index.html',
@@ -71,6 +73,9 @@ self.addEventListener('fetch', (event) => {
 
   // 云端 API / 跨域资源：不经过 SW，避免脏缓存
   if (!isSameOrigin(url) || isApiRequest(url)) return;
+
+  // sw.js 自身不走自定义缓存策略，交给浏览器 update 算法
+  if (url.pathname === '/sw.js') return;
 
   const accept = request.headers.get('accept') || '';
   const isNavigate = request.mode === 'navigate' || accept.indexOf('text/html') >= 0;
