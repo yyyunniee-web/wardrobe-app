@@ -15,7 +15,6 @@
 <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500&display=swap" rel="stylesheet">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.7.7/lunar.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 <script>
   tailwind.config = {
     theme: {
@@ -119,6 +118,19 @@
     text-align:center;
     padding:0.75rem;
     box-sizing:border-box;
+  }
+  .global-loading{
+    position:fixed; inset:0; z-index:80;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(251,247,240,0.72);
+    backdrop-filter:blur(2px);
+  }
+  .global-loading.hidden{ display:none; }
+  .global-loading-card{
+    background:#fff; border:1px solid #EDE6DA; border-radius:1rem;
+    padding:1rem 1.25rem; box-shadow:0 8px 28px rgba(31,27,22,0.08);
+    display:flex; align-items:center; gap:0.65rem;
+    color:#A8764E; font-size:0.9rem;
   }
   .photo-load-failed{ opacity:0.25; }
   .photo-fallback-tip{
@@ -369,18 +381,24 @@
 
 <!-- Toast -->
 <div id="toast" class="toast hidden bg-ink/90 text-white text-sm px-4 py-2.5 rounded-full shadow-lg"></div>
+<!-- 全局 Loading -->
+<div id="global-loading" class="global-loading hidden">
+  <div class="global-loading-card">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+    <span id="global-loading-text">加载中…</span>
+  </div>
+</div>
 
 <script>
 /* ============================================================
    个人智能穿搭衣橱 — 单文件 PWA
-   全部数据 LocalStorage，不上云，无登录
+   衣物数据远端 API；画像/打卡等会话态内存保存
    ============================================================ */
 (function(){
 'use strict';
 
 /* ---------- 常量 ---------- */
-var STORE_KEY = 'wardrobe.v1';
-var PRESIGN_API = 'https://wardrobe-r2-upload.vercel.app/api/get-presign-url';
+var API_BASE = 'https://wardrobe-api.yyyunniee.workers.dev';
 var SCENE_TAGS = ['通勤','约会','居家','运动','度假','正式','休闲'];
 var SEASONS = ['春','夏','秋','冬'];
 var CATEGORIES = ['上衣','外套','裤装','裙装','连衣裙','鞋','包','配饰','内衣','其他'];
@@ -417,14 +435,132 @@ function $(s,el){ return (el||document).querySelector(s); }
 function $all(s,el){ return Array.prototype.slice.call((el||document).querySelectorAll(s)); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ---------- R2 图片上传（Vercel 预签名 → PUT 直传） ---------- */
+/* ---------- 远端 API 封装 ---------- */
+function showLoading(msg){
+  var el = $('#global-loading');
+  var t = $('#global-loading-text');
+  if(t) t.textContent = msg || '加载中…';
+  if(el) el.classList.remove('hidden');
+}
+function hideLoading(){
+  var el = $('#global-loading');
+  if(el) el.classList.add('hidden');
+}
+function apiRequest(path, options){
+  options = options || {};
+  var opts = {
+    method: options.method || 'GET',
+    headers: options.headers ? Object.assign({}, options.headers) : {}
+  };
+  if(options.body !== undefined){
+    if(typeof FormData !== 'undefined' && options.body instanceof FormData){
+      opts.body = options.body;
+    } else {
+      opts.headers['Content-Type'] = 'application/json';
+      opts.body = JSON.stringify(options.body);
+    }
+  }
+  return fetch(API_BASE + path, opts).then(function(res){
+    return res.text().then(function(text){
+      var data = null;
+      if(text){
+        try{ data = JSON.parse(text); }catch(e){ data = text; }
+      }
+      if(!res.ok){
+        var msg = (data && (data.error || data.message)) || ('请求失败 HTTP ' + res.status);
+        throw new Error(msg);
+      }
+      return data;
+    });
+  });
+}
+var api = {
+  listItems: function(){ return apiRequest('/items'); },
+  uploadImage: function(file){
+    var fd = new FormData();
+    fd.append('image', file);
+    return apiRequest('/upload-image', { method: 'POST', body: fd }).then(function(data){
+      console.log('接口完整返回data =', data);
+      if(!data || !data.url) throw new Error('上传接口未返回 url');
+      return data.url;
+    });
+  },
+  createItem: function(item){ return apiRequest('/item', { method: 'POST', body: item }); },
+  updateItem: function(item){ return apiRequest('/item', { method: 'PUT', body: item }); },
+  deleteItem: function(id){ return apiRequest('/item', { method: 'DELETE', body: { id: id } }); }
+};
+
+/* ---------- 衣物字段映射（UI ↔ API） ---------- */
+function clothToApiItem(cloth){
+  var tags = [];
+  function pushTag(t){ if(t!=null && t!=='' && tags.indexOf(t)<0) tags.push(String(t)); }
+  pushTag(cloth.category);
+  (cloth.seasons || []).forEach(pushTag);
+  (cloth.scenes || []).forEach(pushTag);
+  pushTag(cloth.color);
+  pushTag(cloth.fabric);
+  pushTag(cloth.status || 'active');
+  var meta = {
+    category: cloth.category || '',
+    seasons: cloth.seasons || [],
+    scenes: cloth.scenes || [],
+    color: cloth.color || '',
+    fabric: cloth.fabric || '',
+    buyDate: cloth.buyDate || '',
+    price: cloth.price,
+    status: cloth.status || 'active',
+    createdAt: cloth.createdAt || null,
+    retiredAt: cloth.retiredAt || null
+  };
+  return {
+    id: cloth.id,
+    name: cloth.name || '',
+    tags: tags,
+    photo_url: cloth.photo || '',
+    notes: JSON.stringify(meta)
+  };
+}
+function apiItemToCloth(item){
+  item = item || {};
+  var meta = {};
+  var notesRaw = item.notes;
+  if(typeof notesRaw === 'string' && notesRaw.trim().charAt(0) === '{'){
+    try{ meta = JSON.parse(notesRaw); }catch(e){ meta = {}; }
+  } else if(notesRaw && typeof notesRaw === 'object'){
+    meta = notesRaw;
+  }
+  var tags = Array.isArray(item.tags) ? item.tags : [];
+  function pickFrom(list){
+    for(var i=0;i<tags.length;i++){ if(list.indexOf(tags[i])>=0) return tags[i]; }
+    return '';
+  }
+  function filterFrom(list){
+    return tags.filter(function(t){ return list.indexOf(t)>=0; });
+  }
+  var custom = (store && store.customScenes) ? store.customScenes : [];
+  return {
+    id: item.id,
+    name: item.name || '',
+    category: meta.category || pickFrom(CATEGORIES) || '',
+    seasons: Array.isArray(meta.seasons) ? meta.seasons : filterFrom(SEASONS),
+    scenes: Array.isArray(meta.scenes) ? meta.scenes : filterFrom(SCENE_TAGS.concat(custom)),
+    color: meta.color || pickFrom(COLORS) || '',
+    fabric: meta.fabric || pickFrom(FABRICS) || '',
+    buyDate: meta.buyDate || '',
+    price: (meta.price != null && meta.price !== '') ? meta.price : '',
+    photo: item.photo_url || item.photo || '',
+    status: meta.status || (tags.indexOf('retired')>=0 ? 'retired' : 'active'),
+    createdAt: meta.createdAt || null,
+    retiredAt: meta.retiredAt || null
+  };
+}
+
+/* ---------- 图片展示工具 ---------- */
 function normalizePublicUrl(url){
   if(url == null || url === '') return '';
-  // 完整使用接口返回的 publicUrl，不做路径截取、不加前缀/后缀
   return String(url).trim();
 }
 function photoAttrSrc(url){
-  // 仅转义 HTML 属性分隔符，保留 ? & = 等 URL 字符
   return normalizePublicUrl(url)
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
@@ -448,7 +584,6 @@ window.__onPhotoError = function(img){
   tip.className = 'photo-fallback-tip';
   tip.textContent = '图片加载失败';
   if(img.parentNode){
-    // 列表缩略图：用兜底层盖住；表单大图：插在下方提示
     if(img.parentNode.className && String(img.parentNode.className).indexOf('img-wrap-') === 0){
       img.style.display = 'none';
       img.parentNode.appendChild(tip);
@@ -465,29 +600,9 @@ function bindPhotoFallbacks(root){
   });
 }
 function uploadImage(file){
-  var name = file && file.name ? String(file.name) : 'image.jpg';
-  var ext = name.indexOf('.') >= 0 ? name.split('.').pop() : 'jpg';
-  ext = String(ext).toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
-  var key = 'wardrobe/' + Date.now() + '-' + Math.random().toString(36).slice(2, 10) + '.' + ext;
-  return fetch(PRESIGN_API, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: key })
-  }).then(function(res){
-    if(!res.ok) throw new Error('获取上传签名失败 HTTP ' + res.status);
-    return res.json();
-  }).then(function(data){
-    console.log('接口完整返回data =', data);
-    if(!data || !data.publicUrl) throw new Error('签名接口未返回 publicUrl');
-    if(!data.uploadUrl) throw new Error('签名接口未返回 uploadUrl');
-    // 单独保存预签名返回的 publicUrl，勿被 PUT 响应覆盖
-    var imageUrl = data.publicUrl;
-    return fetch(data.uploadUrl, { method: 'PUT', body: file }).then(function(uploadRes){
-      if(!uploadRes.ok) throw new Error('图片上传失败 HTTP ' + uploadRes.status);
-      // PUT 仅表示上传网络操作成功，返回值仍用预签名接口的 publicUrl
-      console.log('最终得到publicUrl =', imageUrl);
-      return imageUrl;
-    });
+  return api.uploadImage(file).then(function(url){
+    console.log('最终得到publicUrl =', url);
+    return url;
   });
 }
 function setFormPhotoPreview(url){
@@ -497,7 +612,7 @@ function setFormPhotoPreview(url){
   if(el.tagName === 'IMG'){
     el.removeAttribute('data-photo-failed');
     el.classList.remove('photo-load-failed');
-    el.src = url; // 属性赋值用完整 URL，禁止 HTML 转义串
+    el.src = url;
     el.setAttribute('data-remote-photo', '1');
     el._photoErrBound = false;
     bindPhotoFallbacks(el.parentNode || document);
@@ -506,32 +621,34 @@ function setFormPhotoPreview(url){
     bindPhotoFallbacks($('#cloth-form-wrap') || document);
   }
 }
-/** 上传成功后立刻写入本地记录，并刷新可见预览 */
+/** 上传成功后写入预览；已有衣物则同步远端 photo_url */
 function commitClothPhoto(clothId, publicUrl){
   publicUrl = normalizePublicUrl(publicUrl);
-  if(!publicUrl) return publicUrl;
+  if(!publicUrl) return Promise.resolve(publicUrl);
   window._formPhoto = publicUrl;
-  if(clothId){
-    var cloth = findCloth(clothId);
-    if(cloth){
-      cloth.photo = publicUrl;
-      saveStore();
-    }
-  }
   setFormPhotoPreview(publicUrl);
-  // 刷新列表页展示（不关闭弹层）
-  if(typeof render === 'function') render();
-  return publicUrl;
+  if(!clothId){
+    if(typeof render === 'function') render();
+    return Promise.resolve(publicUrl);
+  }
+  var cloth = findCloth(clothId);
+  if(!cloth){
+    if(typeof render === 'function') render();
+    return Promise.resolve(publicUrl);
+  }
+  cloth.photo = publicUrl;
+  return persistCloth(cloth, false).then(function(){
+    if(typeof render === 'function') render();
+    return publicUrl;
+  });
 }
 function commitCheckinPhoto(publicUrl){
   publicUrl = normalizePublicUrl(publicUrl);
   checkinPhoto = publicUrl;
   checkinTempPhoto = publicUrl;
-  // 若今日已有打卡记录，立刻回写 photo
   var todayCk = findCheckin(todayStr());
   if(todayCk){
     todayCk.photo = publicUrl;
-    saveStore();
     if(typeof render === 'function') render();
   }
   var area = $('#ck-photo-area');
@@ -611,36 +728,41 @@ function parseAIResponse(text){
   return result;
 }
 
-/* ---------- 持久化（LZString 压缩，兼容旧版明文 JSON） ---------- */
+/* ---------- 会话态 store（衣物由远端 API 持久化） ---------- */
 var store = null;
-function parseStoreRaw(raw){
-  if(!raw) return null;
-  // 旧数据：直接是 JSON；新数据：LZString 压缩串
-  var json = (raw.charAt(0) === '{' || raw.charAt(0) === '[')
-    ? raw
-    : (LZString.decompress(raw) || LZString.decompressFromUTF16(raw));
-  if(!json) return null;
-  return JSON.parse(json);
-}
-function loadStore(){
-  try{
-    var raw = localStorage.getItem(STORE_KEY);
-    var data = parseStoreRaw(raw);
-    if(data){ store = data; mergeDefaults(store, DEFAULT_STORE); return; }
-  }catch(e){}
+function initStore(){
   store = clone(DEFAULT_STORE);
 }
 function mergeDefaults(t, d){
   for(var k in d){ if(!(k in t)){ t[k] = clone(d[k]); } else if(typeof d[k]==='object' && !Array.isArray(d[k]) && d[k]!=null){ mergeDefaults(t[k], d[k]); } }
 }
-function saveStore(){
-  var rawJson = JSON.stringify(store);
-  try{
-    localStorage.setItem(STORE_KEY, LZString.compress(rawJson));
-  }catch(e){
-    // 压缩写入失败时回退明文，尽量保住数据
-    try{ localStorage.setItem(STORE_KEY, rawJson); }catch(e2){ console.warn('[衣橱] localStorage 写入失败', e2); }
-  }
+/** 兼容旧调用：画像/打卡等仅内存，衣物请走 persistCloth / deleteClothRemote */
+function saveStore(){ /* no localStorage */ }
+
+function normalizeItemsPayload(data){
+  if(Array.isArray(data)) return data;
+  if(data && Array.isArray(data.items)) return data.items;
+  if(data && Array.isArray(data.data)) return data.data;
+  return [];
+}
+function loadClothesFromApi(){
+  return api.listItems().then(function(data){
+    store.clothes = normalizeItemsPayload(data).map(apiItemToCloth);
+    return store.clothes;
+  });
+}
+function persistCloth(cloth, isNew){
+  var payload = clothToApiItem(cloth);
+  var req = isNew ? api.createItem(payload) : api.updateItem(payload);
+  return req.then(function(){
+    upsertCloth(cloth);
+    return cloth;
+  });
+}
+function deleteClothRemote(id){
+  return api.deleteItem(id).then(function(){
+    removeClothById(id);
+  });
 }
 
 /* ---------- 数据安全：禁止整体覆盖数组，仅单条更新或追加 ---------- */
@@ -2589,12 +2711,13 @@ function renderClothForm(existing, isAI, opts){
     window._formPhotoUploading = true;
     toast('图片上传中…');
     uploadImage(file).then(function(publicUrl){
-      window._formPhotoUploading = false;
       var clothId = (existing && existing.id) ? existing.id : null;
-      commitClothPhoto(clothId, publicUrl);
-      if(existing) existing.photo = normalizePublicUrl(publicUrl);
-      c.photo = normalizePublicUrl(publicUrl);
-      toast('图片已上传');
+      return commitClothPhoto(clothId, publicUrl).then(function(){
+        window._formPhotoUploading = false;
+        if(existing) existing.photo = normalizePublicUrl(publicUrl);
+        c.photo = normalizePublicUrl(publicUrl);
+        toast('图片已上传');
+      });
     }).catch(function(err){
       window._formPhotoUploading = false;
       toast('图片上传失败：'+(err.message||err));
@@ -2604,25 +2727,30 @@ function renderClothForm(existing, isAI, opts){
     if(window._formPhotoUploading){ toast('图片仍在上传，请稍候'); return; }
     var data = collectForm(c, seasons, scenesSel);
     if(!data.name.trim()){ toast('请填写名称'); return; }
-    if(existing && existing.id){
+    var isNew = !(existing && existing.id);
+    if(!isNew){
       data.id = existing.id;
       data.createdAt = existing.createdAt || Date.now();
       data.retiredAt = existing.retiredAt || null;
-      upsertCloth(data);
     } else {
       data.id = uid(); data.createdAt = Date.now(); data.retiredAt = null;
-      upsertCloth(data);
     }
-    saveStore();
-    if(checkinPendingReturn){
-      returnToCheckinModal(true);
-    } else if(opts.fromDetail && existing && existing.id){
-      render();
-      openClothDetail(existing.id);
-      toast('已保存');
-    } else {
-      closeSheet(true); render(); toast(existing&&existing.id?'已保存':'已入库');
-    }
+    showLoading(isNew ? '入库中…' : '保存中…');
+    persistCloth(data, isNew).then(function(){
+      hideLoading();
+      if(checkinPendingReturn){
+        returnToCheckinModal(true);
+      } else if(opts.fromDetail && existing && existing.id){
+        render();
+        openClothDetail(existing.id);
+        toast('已保存');
+      } else {
+        closeSheet(true); render(); toast(isNew ? '已入库' : '已保存');
+      }
+    }).catch(function(err){
+      hideLoading();
+      toast('保存失败：'+(err.message||err));
+    });
   });
   var fcd = $('#f-cancel-detail');
   if(fcd) fcd.addEventListener('click', function(){ openClothDetail(opts.clothId || existing.id); });
@@ -2630,8 +2758,12 @@ function renderClothForm(existing, isAI, opts){
   if(fc) fc.addEventListener('click', function(){ returnToCheckinModal(false); });
   var fd = $('#f-delete'); if(fd) fd.addEventListener('click', function(){
     if(confirm('确定删除该衣物？此操作不可恢复（建议改用淘汰标记）。')){
-      removeClothById(existing.id);
-      saveStore(); closeSheet(); render(); toast('已删除');
+      showLoading('删除中…');
+      deleteClothRemote(existing.id).then(function(){
+        hideLoading(); closeSheet(); render(); toast('已删除');
+      }).catch(function(err){
+        hideLoading(); toast('删除失败：'+(err.message||err));
+      });
     }
   });
 }
@@ -2731,10 +2863,24 @@ function openClothDetail(id){
   });
   $('#detail-retire').addEventListener('click', function(){
     if(confirm('确认淘汰「'+c.name+'」？淘汰后不会删除，可随时恢复。')){
-      c.status='retired'; c.retiredAt=todayStr(); saveStore(); closeSheet(); render(); toast('已标记淘汰');
+      c.status='retired'; c.retiredAt=todayStr();
+      showLoading('更新中…');
+      persistCloth(c, false).then(function(){
+        hideLoading(); closeSheet(); render(); toast('已标记淘汰');
+      }).catch(function(err){
+        hideLoading(); toast('更新失败：'+(err.message||err));
+      });
     }
   });
-  var dr=$('#detail-restore'); if(dr) dr.addEventListener('click', function(){ c.status='active'; c.retiredAt=null; saveStore(); closeSheet(); render(); toast('已恢复'); });
+  var dr=$('#detail-restore'); if(dr) dr.addEventListener('click', function(){
+    c.status='active'; c.retiredAt=null;
+    showLoading('更新中…');
+    persistCloth(c, false).then(function(){
+      hideLoading(); closeSheet(); render(); toast('已恢复');
+    }).catch(function(err){
+      hideLoading(); toast('更新失败：'+(err.message||err));
+    });
+  });
   $('#detail-export').addEventListener('click', function(){ exportCleanJSON([c], '衣物_'+c.name); });
 }
 
@@ -3611,10 +3757,10 @@ function viewSettings(){
   html += '<label class="block"><input id="b-file" type="file" accept="application/json,.json" class="hidden" />';
   html += '<div class="bg-paper border border-line rounded-xl py-2.5 text-sm font-medium text-center">导入恢复</div></label>';
   html += '</div>';
-  html += '<div class="text-xs text-mute leading-relaxed">导入会替换当前本地数据，请先导出备份。iOS 存储紧张时建议定期备份。</div>';
+  html += '<div class="text-xs text-mute leading-relaxed">导入会同步到云端衣橱（先清空远端衣物再写入备份中的衣物）。请先导出备份。</div>';
   html += '</div>';
 
-  html += '<div class="text-center text-xs text-mute py-2">数据全部保存在本地</div>';
+  html += '<div class="text-center text-xs text-mute py-2">衣物数据保存在云端 API</div>';
   html += '<div class="h-6"></div></div>';
   return html;
 }
@@ -3679,12 +3825,43 @@ function importBackup(e){
     try{
       var data = JSON.parse(ev.target.result);
       if(!data || typeof data !== 'object' || !('clothes' in data) || !('profile' in data)) throw new Error('格式不符');
-      if(!confirm('导入会替换当前全部本地衣橱打卡数据，确认继续？')) return;
-      if(!confirm('再次确认：此操作不可撤销，当前本地衣橱、打卡、日志数据将被备份文件完全替换。确定导入？')) return;
+      if(!confirm('导入会替换云端衣橱中的全部衣物，确认继续？')) return;
+      if(!confirm('再次确认：此操作不可撤销，当前云端衣物将被备份文件中的衣物覆盖。确定导入？')) return;
       mergeDefaults(data, DEFAULT_STORE);
-      store = data;
-      store.version = DEFAULT_STORE.version;
-      saveStore(); render(); toast('导入成功');
+      var clothes = Array.isArray(data.clothes) ? data.clothes : [];
+      var profile = data.profile;
+      var rest = data;
+      showLoading('导入同步中…');
+      api.listItems().then(function(existing){
+        var list = normalizeItemsPayload(existing);
+        var chain = Promise.resolve();
+        list.forEach(function(it){
+          if(it && it.id) chain = chain.then(function(){ return api.deleteItem(it.id); });
+        });
+        return chain;
+      }).then(function(){
+        var chain = Promise.resolve();
+        clothes.forEach(function(c){
+          if(!c.id) c.id = uid();
+          chain = chain.then(function(){ return api.createItem(clothToApiItem(c)); });
+        });
+        return chain;
+      }).then(function(){
+        store = clone(DEFAULT_STORE);
+        if(profile) store.profile = Object.assign(store.profile, profile);
+        if(rest.customScenes) store.customScenes = rest.customScenes;
+        if(rest.aiConfig) store.aiConfig = Object.assign(store.aiConfig, rest.aiConfig);
+        if(rest.checkins) store.checkins = rest.checkins;
+        if(rest.logs) store.logs = rest.logs;
+        return loadClothesFromApi();
+      }).then(function(){
+        hideLoading();
+        render();
+        toast('导入成功');
+      }).catch(function(err){
+        hideLoading();
+        toast('导入失败：'+(err.message||err));
+      });
     }catch(err){ toast('导入失败：'+err.message); }
   };
   reader.readAsText(file);
@@ -3760,8 +3937,17 @@ render = function(){
    启动
    ============================================================ */
 document.addEventListener('DOMContentLoaded', function(){
-  loadStore();
-  refreshWeather(store.weather.city || store.profile.city || '北京');
+  initStore();
+  showLoading('加载衣橱…');
+  loadClothesFromApi().then(function(){
+    hideLoading();
+    refreshWeather(store.weather.city || store.profile.city || '北京');
+  }).catch(function(err){
+    hideLoading();
+    console.error('[衣橱] 加载衣物失败', err);
+    toast('加载衣物失败：'+(err.message||err));
+    refreshWeather(store.weather.city || store.profile.city || '北京');
+  });
 });
 
 })();
