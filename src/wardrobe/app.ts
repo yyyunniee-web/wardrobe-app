@@ -856,9 +856,10 @@ function diaryMiniCard(c){
   return html;
 }
 function checkinDetailHtml(c){
+  var w = (c && c.weather) || {};
   var html = '<div class="px-5 space-y-3 pb-2">';
   html += '<div class="flex items-center justify-between text-sm"><span class="font-medium">'+esc(c.date)+' <span class="diary-src-tag">'+esc(checkinSourceLabel(c))+'</span></span>';
-  html += '<span class="text-xs text-mute">'+esc(c.weather.city)+' '+c.weather.temp+'° '+esc(c.weather.cond)+'</span></div>';
+  html += '<span class="text-xs text-mute">'+esc(w.city || '')+(w.temp != null && w.temp !== '' ? (' '+w.temp+'°') : '')+(w.cond ? (' '+esc(w.cond)) : '')+'</span></div>';
   // 穿搭衣物缩略图：有勾选衣物才渲染，无则不占位
   if(c.items && c.items.length){
     html += '<div class="flex gap-2 overflow-x-auto no-scrollbar">';
@@ -1067,9 +1068,10 @@ function genAlmanac(day, p){
 }
 
 function checkinCard(c){
+  var w = (c && c.weather) || {};
   var html = '<div class="bg-white rounded-2xl border border-line p-4">';
   html += '<div class="flex items-center justify-between mb-2"><div class="text-sm font-medium">'+esc(c.date)+' <span class="diary-src-tag">'+esc(checkinSourceLabel(c))+'</span></div>';
-  html += '<div class="text-xs text-mute">'+esc(c.weather.city)+' '+c.weather.temp+'° '+esc(c.weather.cond)+'</div></div>';
+  html += '<div class="text-xs text-mute">'+esc(w.city || '')+(w.temp != null && w.temp !== '' ? (' '+w.temp+'°') : '')+(w.cond ? (' '+esc(w.cond)) : '')+'</div></div>';
   if(c.photo) html += '<div class="mb-2">'+imgBox(c.photo, '', 'portrait', 0)+'</div>';
   html += '<div class="flex flex-wrap gap-1.5 mb-2">';
   var moodTxt = checkinMoodLabel(c);
