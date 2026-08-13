@@ -4,8 +4,8 @@
  * - 不拦截跨域 API（Cloudflare Worker）
  * - CACHE 名在 vite build 时会被打上时间戳，保证每次发布 sw.js 字节变化
  */
-/* build:20260813133247 */
-const CACHE = 'wardrobe-shell-20260813133247';
+/* build:20260813152029 */
+const CACHE = 'wardrobe-shell-20260813152029';
 const PRECACHE = [
   '/',
   '/index.html',

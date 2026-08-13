@@ -17,9 +17,28 @@
       var ua = navigator.userAgent || '';
       var ios = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       if (!ios) return;
-      document.documentElement.classList.add('is-ios');
-      if (navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches) {
-        document.documentElement.classList.add('is-ios-pwa');
+      var root = document.documentElement;
+      root.classList.add('is-ios');
+      var isPwa = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+      if (!isPwa) return;
+      root.classList.add('is-ios-pwa');
+      /* 仅当 env(safe-area-inset-top) 实测为 0 时才启用 59px 兜底，避免与真实 inset 叠加出双倍空白 */
+      var applyFallbackIfNeeded = function () {
+        try {
+          var probe = document.createElement('div');
+          probe.setAttribute('aria-hidden', 'true');
+          probe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;padding-top:constant(safe-area-inset-top);padding-top:env(safe-area-inset-top,0px);';
+          root.appendChild(probe);
+          var pt = parseFloat(window.getComputedStyle(probe).paddingTop) || 0;
+          root.removeChild(probe);
+          if (pt < 1) root.classList.add('safe-top-fallback');
+          else root.classList.remove('safe-top-fallback');
+        } catch (e2) {}
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyFallbackIfNeeded);
+      } else {
+        applyFallbackIfNeeded();
       }
     } catch (e) {}
   })();
@@ -87,24 +106,18 @@
     }
   }
   /*
-   * 实测根因（非横向 ellipsis）：
-   * viewport-fit=cover + status-bar default 时内容画进状态栏，
-   * env(safe-area-inset-top) 常为 0；标题 top≈32px，47px 状态栏会竖向裁掉上半部（像「折叠」）。
-   * 注意：iOS 上 (display-mode:standalone) 经常匹配失败，需配合 html.is-ios-pwa（navigator.standalone）。
+   * PWA standalone：优先使用真实 env(safe-area-inset-top)。
+   * 仅当 inset 实测为 0（html.safe-top-fallback，见 head 脚本）时才用 59px 兜底，
+   * 避免 max(safe-top, 59px) 在 inset 已存在时叠出「第二道刘海」空白。
+   * iOS 上 (display-mode:standalone) 常匹配失败，需配合 html.is-ios-pwa（navigator.standalone）。
    */
-  @supports (-webkit-touch-callout: none){
-    @media (display-mode: standalone), (display-mode: fullscreen){
-      @media (max-width: 48rem){
-        :root{
-          --safe-top-effective: max(var(--safe-top), 59px);
-          --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
-          --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
-        }
-      }
-    }
-  }
   html.is-ios-pwa{
-    --safe-top-effective: max(var(--safe-top), 59px);
+    --safe-top-effective: var(--safe-top);
+    --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
+    --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+  }
+  html.is-ios-pwa.safe-top-fallback{
+    --safe-top-effective: 59px;
     --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
     --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
   }
@@ -567,7 +580,7 @@
   <meta property="og:image" content="https://bolt.new/static/og_default.png">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:image" content="https://bolt.new/static/og_default.png">
-  <script type="module" crossorigin src="/assets/index-BudkZB4W.js"></script>
+  <script type="module" crossorigin src="/assets/index-C2btSmki.js"></script>
 </head>
 <body>
 
