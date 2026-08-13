@@ -800,9 +800,44 @@ function defaultOrderThumbBox(itemIndex){
   return { x: 0.04, y: y, w: 0.24, h: 0.20 };
 }
 
-/** 订单截图：始终本地左侧缩略图（忽略模型 cropSuggestion） */
-function resolveOrderThumbBox(_aiBox, itemIndex){
-  return defaultOrderThumbBox(itemIndex);
+/** 用户/传入裁剪框：允许较大区域（手动裁剪用）；非法则 null */
+function clampUserThumbBox(box){
+  if(!box || typeof box !== 'object') return null;
+  var x = Number(box.x);
+  var y = Number(box.y);
+  var w = Number(box.width != null ? box.width : box.w);
+  var h = Number(box.height != null ? box.height : box.h);
+  if(!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return null;
+  if(w > 1 || h > 1 || x > 1 || y > 1){
+    x = x/100; y = y/100; w = w/100; h = h/100;
+  }
+  if(!(w > 0.04 && h > 0.04)) return null;
+  x = Math.max(0, Math.min(0.95, x));
+  y = Math.max(0, Math.min(0.95, y));
+  w = Math.max(0.05, Math.min(1 - x, w));
+  h = Math.max(0.05, Math.min(1 - y, h));
+  return { x:x, y:y, w:w, h:h };
+}
+
+/** 通用图片默认裁剪框（接近整图，便于再调） */
+function defaultGeneralThumbBox(){
+  return { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
+}
+
+/**
+ * 有合法传入框优先；
+ * mode=order → 订单左侧缩略图启发式；否则通用整图框。
+ */
+function resolveThumbBox(box, itemIndex, mode){
+  var user = clampUserThumbBox(box);
+  if(user) return user;
+  if(mode === 'order') return defaultOrderThumbBox(itemIndex);
+  return defaultGeneralThumbBox();
+}
+
+/** 订单截图兼容：默认 mode=order */
+function resolveOrderThumbBox(aiBox, itemIndex){
+  return resolveThumbBox(aiBox, itemIndex, 'order');
 }
 
 function loadLocalImageFile(file){
@@ -815,12 +850,24 @@ function loadLocalImageFile(file){
   });
 }
 
-/** 订单截图裁剪商品主图：模型框仅辅助，无效则用左侧缩略图启发式 */
-function cropOrderProductThumbBlob(img, thumbBox, itemIndex){
+function loadImageFromUrl(url){
+  return new Promise(function(resolve, reject){
+    var src = String(url || '').trim();
+    if(!src) return reject(new Error('缺少图片地址'));
+    var img = new Image();
+    if(/^https?:/i.test(src)) img.crossOrigin = 'anonymous';
+    img.onload = function(){ resolve({ img:img, objectUrl:'' }); };
+    img.onerror = function(){ reject(new Error('图片加载失败，请重新上传后再裁剪')); };
+    img.src = src;
+  });
+}
+
+/** 裁剪为方图：优先用户/传入框，否则按 mode 默认 */
+function cropOrderProductThumbBlob(img, thumbBox, itemIndex, mode){
   var W = img.naturalWidth || img.width;
   var H = img.naturalHeight || img.height;
   if(!W || !H) return Promise.reject(new Error('无效图片尺寸'));
-  var box = resolveOrderThumbBox(thumbBox, itemIndex);
+  var box = resolveThumbBox(thumbBox, itemIndex, mode || 'order');
   var sx = Math.max(0, Math.round(box.x * W));
   var sy = Math.max(0, Math.round(box.y * H));
   var sw = Math.max(48, Math.round(Math.min(box.w * W, W - sx)));
@@ -838,6 +885,278 @@ function cropOrderProductThumbBlob(img, thumbBox, itemIndex){
       if(!blob) reject(new Error('裁剪失败'));
       else resolve(blob);
     }, 'image/jpeg', 0.9);
+  });
+}
+
+/**
+ * 通用照片编辑会话（不入库）：
+ * - sourceUrl / img：原始图，多次裁剪复用
+ * - _formPhoto：当前展示/保存用（可为裁剪结果）
+ */
+function clearPhotoEditSession(){
+  var s = window._photoEditSession || window._aiCropSession;
+  if(s && s.objectUrl){
+    try{ URL.revokeObjectURL(s.objectUrl); }catch(e){ /* ignore */ }
+  }
+  window._photoEditSession = null;
+  window._aiCropSession = null;
+  window._formPhotoSource = '';
+  ['ai-crop-overlay', 'photo-edit-sheet'].forEach(function(id){
+    var el = document.getElementById(id);
+    if(el && el.parentNode) el.parentNode.removeChild(el);
+  });
+}
+function clearAiCropSession(){ clearPhotoEditSession(); }
+
+function setPhotoEditSession(local, sourceUrl, thumbBox, itemIndex, mode){
+  if(!local || !local.img) return;
+  var prev = window._photoEditSession || window._aiCropSession;
+  if(prev && prev.objectUrl && prev.objectUrl !== local.objectUrl){
+    try{ URL.revokeObjectURL(prev.objectUrl); }catch(e){ /* ignore */ }
+  }
+  var idx = itemIndex != null ? itemIndex : 0;
+  var m = mode === 'order' ? 'order' : 'general';
+  var src = normalizePublicUrl(sourceUrl) || String(sourceUrl || '');
+  var session = {
+    img: local.img,
+    objectUrl: local.objectUrl || '',
+    sourceUrl: src,
+    thumbBox: resolveThumbBox(thumbBox, idx, m),
+    itemIndex: idx,
+    mode: m
+  };
+  window._photoEditSession = session;
+  window._aiCropSession = session; // AI 路径兼容
+  window._formPhotoSource = src;
+}
+
+function setAiCropSession(local, sourceUrl, thumbBox, itemIndex){
+  setPhotoEditSession(local, sourceUrl, thumbBox, itemIndex, 'order');
+}
+
+function getPhotoEditSession(){
+  return window._photoEditSession || window._aiCropSession || null;
+}
+
+/** 确保有可裁剪原图：优先会话，否则从 source / 当前预览 URL 加载 */
+function ensurePhotoEditSession(){
+  var s = getPhotoEditSession();
+  if(s && s.img) return Promise.resolve(s);
+  var src = (s && s.sourceUrl) || window._formPhotoSource || window._formPhoto || '';
+  src = normalizePublicUrl(src) || String(src || '').trim();
+  if(!src) return Promise.reject(new Error('暂无图片可裁剪'));
+  if(src.indexOf('blob:') === 0){
+    return Promise.reject(new Error('原图已失效，请重新上传后再裁剪'));
+  }
+  return loadImageFromUrl(src).then(function(local){
+    var mode = (s && s.mode) || 'general';
+    var box = (s && s.thumbBox) || null;
+    setPhotoEditSession(local, src, box, (s && s.itemIndex) || 0, mode);
+    return getPhotoEditSession();
+  });
+}
+
+function getImageContainRect(stageW, stageH, natW, natH){
+  if(!stageW || !stageH || !natW || !natH) return null;
+  var scale = Math.min(stageW / natW, stageH / natH);
+  var dw = natW * scale;
+  var dh = natH * scale;
+  return {
+    left: (stageW - dw) / 2,
+    top: (stageH - dh) / 2,
+    width: dw,
+    height: dh,
+    scale: scale
+  };
+}
+
+/** 图片编辑入口：裁剪 / 重新上传 / 取消（不直接触发 file） */
+function openPhotoEditActions(handlers){
+  handlers = handlers || {};
+  var old = document.getElementById('photo-edit-sheet');
+  if(old && old.parentNode) old.parentNode.removeChild(old);
+  var sheet = document.createElement('div');
+  sheet.id = 'photo-edit-sheet';
+  sheet.className = 'photo-edit-sheet';
+  sheet.innerHTML =
+    '<div class="photo-edit-sheet-backdrop" data-act="cancel"></div>'+
+    '<div class="photo-edit-sheet-panel" role="dialog" aria-label="编辑图片">'+
+      '<button type="button" class="photo-edit-sheet-item" data-act="crop">裁剪图片</button>'+
+      '<button type="button" class="photo-edit-sheet-item" data-act="reupload">重新上传</button>'+
+      '<button type="button" class="photo-edit-sheet-item photo-edit-sheet-cancel" data-act="cancel">取消</button>'+
+    '</div>';
+  document.body.appendChild(sheet);
+  function close(){
+    if(sheet.parentNode) sheet.parentNode.removeChild(sheet);
+  }
+  sheet.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    var act = btn.getAttribute('data-act');
+    close();
+    if(act === 'crop' && typeof handlers.onCrop === 'function') handlers.onCrop();
+    else if(act === 'reupload' && typeof handlers.onReupload === 'function') handlers.onReupload();
+  });
+}
+
+/**
+ * 移动端优先：原始图 + 可拖/可缩放裁剪框。
+ * 取消不改 _formPhoto；完成才裁切上传并替换预览（原图会话保留）。
+ */
+function openManualCropEditor(onDone){
+  ensurePhotoEditSession().then(function(session){
+    if(!session || !session.img){
+      toast('暂无原图可裁剪，请重新上传图片');
+      return;
+    }
+    var existing = document.getElementById('ai-crop-overlay');
+    if(existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+    var mode = session.mode || 'general';
+    var box = resolveThumbBox(session.thumbBox, session.itemIndex || 0, mode);
+    var draft = { x: box.x, y: box.y, w: box.w, h: box.h };
+
+    var overlay = document.createElement('div');
+    overlay.id = 'ai-crop-overlay';
+    overlay.className = 'ai-crop-overlay';
+    overlay.innerHTML =
+      '<div class="ai-crop-bar">'+
+        '<button type="button" id="ai-crop-cancel" class="ai-crop-btn ai-crop-btn-ghost">取消</button>'+
+        '<div class="ai-crop-bar-title">拖动调整裁剪</div>'+
+        '<button type="button" id="ai-crop-done" class="ai-crop-btn ai-crop-btn-primary">完成</button>'+
+      '</div>'+
+      '<div class="ai-crop-stage" id="ai-crop-stage">'+
+        '<img id="ai-crop-img" class="ai-crop-img" alt="原始图片" draggable="false" />'+
+        '<div id="ai-crop-box" class="ai-crop-box" role="presentation">'+
+          '<div id="ai-crop-handle" class="ai-crop-handle" aria-hidden="true"></div>'+
+        '</div>'+
+      '</div>'+
+      '<div class="ai-crop-hint">基于原始图片裁剪 · 可多次调整</div>';
+    document.body.appendChild(overlay);
+
+    var stage = overlay.querySelector('#ai-crop-stage');
+    var imgEl = overlay.querySelector('#ai-crop-img');
+    var boxEl = overlay.querySelector('#ai-crop-box');
+    var handleEl = overlay.querySelector('#ai-crop-handle');
+    var disp = null;
+    var drag = null;
+
+    imgEl.src = session.objectUrl || session.sourceUrl || '';
+
+    function applyBoxUi(){
+      if(!disp) return;
+      boxEl.style.left = (disp.left + draft.x * disp.width) + 'px';
+      boxEl.style.top = (disp.top + draft.y * disp.height) + 'px';
+      boxEl.style.width = (draft.w * disp.width) + 'px';
+      boxEl.style.height = (draft.h * disp.height) + 'px';
+    }
+
+    function layout(){
+      var nw = session.img.naturalWidth || session.img.width;
+      var nh = session.img.naturalHeight || session.img.height;
+      disp = getImageContainRect(stage.clientWidth, stage.clientHeight, nw, nh);
+      if(!disp) return;
+      imgEl.style.left = disp.left + 'px';
+      imgEl.style.top = disp.top + 'px';
+      imgEl.style.width = disp.width + 'px';
+      imgEl.style.height = disp.height + 'px';
+      applyBoxUi();
+    }
+
+    function closeOverlay(){
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      window.removeEventListener('resize', layout);
+    }
+
+    function onPointerDown(e, dragMode){
+      if(!disp) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var pid = e.pointerId;
+      try{ e.currentTarget.setPointerCapture(pid); }catch(err){ /* ignore */ }
+      drag = {
+        mode: dragMode,
+        pid: pid,
+        startX: e.clientX,
+        startY: e.clientY,
+        ox: draft.x,
+        oy: draft.y,
+        ow: draft.w,
+        oh: draft.h
+      };
+    }
+
+    function onPointerMove(e){
+      if(!drag || !disp || e.pointerId !== drag.pid) return;
+      e.preventDefault();
+      var dx = (e.clientX - drag.startX) / disp.width;
+      var dy = (e.clientY - drag.startY) / disp.height;
+      var minW = 0.08, minH = 0.08;
+      if(drag.mode === 'move'){
+        draft.x = Math.max(0, Math.min(1 - drag.ow, drag.ox + dx));
+        draft.y = Math.max(0, Math.min(1 - drag.oh, drag.oy + dy));
+        draft.w = drag.ow;
+        draft.h = drag.oh;
+      } else {
+        draft.x = drag.ox;
+        draft.y = drag.oy;
+        draft.w = Math.max(minW, Math.min(1 - drag.ox, drag.ow + dx));
+        draft.h = Math.max(minH, Math.min(1 - drag.oy, drag.oh + dy));
+      }
+      applyBoxUi();
+    }
+
+    function onPointerUp(e){
+      if(!drag || e.pointerId !== drag.pid) return;
+      drag = null;
+    }
+
+    boxEl.addEventListener('pointerdown', function(e){
+      if(e.target === handleEl) return;
+      onPointerDown(e, 'move');
+    });
+    handleEl.addEventListener('pointerdown', function(e){ onPointerDown(e, 'resize'); });
+    boxEl.addEventListener('pointermove', onPointerMove);
+    handleEl.addEventListener('pointermove', onPointerMove);
+    boxEl.addEventListener('pointerup', onPointerUp);
+    handleEl.addEventListener('pointerup', onPointerUp);
+    boxEl.addEventListener('pointercancel', onPointerUp);
+    handleEl.addEventListener('pointercancel', onPointerUp);
+
+    overlay.querySelector('#ai-crop-cancel').addEventListener('click', function(){
+      closeOverlay();
+    });
+
+    overlay.querySelector('#ai-crop-done').addEventListener('click', function(){
+      var finalBox = clampUserThumbBox(draft);
+      if(!finalBox){ toast('裁剪区域无效'); return; }
+      var doneBtn = overlay.querySelector('#ai-crop-done');
+      doneBtn.disabled = true;
+      doneBtn.textContent = '处理中…';
+      cropOrderProductThumbBlob(session.img, finalBox, session.itemIndex || 0, mode).then(function(blob){
+        return uploadImage(blob).then(function(thumbUrl){
+          thumbUrl = normalizePublicUrl(thumbUrl);
+          session.thumbBox = finalBox;
+          // 原图 sourceUrl / img 不变，仅更新展示与入库用照片
+          window._formPhoto = thumbUrl;
+          setFormPhotoPreview(thumbUrl);
+          closeOverlay();
+          if(typeof onDone === 'function') onDone(thumbUrl, finalBox);
+          toast('裁剪已更新');
+        });
+      }).catch(function(err){
+        doneBtn.disabled = false;
+        doneBtn.textContent = '完成';
+        toast('裁剪失败：'+(err.message||err));
+      });
+    });
+
+    window.addEventListener('resize', layout);
+    if(imgEl.complete && imgEl.naturalWidth) layout();
+    else imgEl.onload = layout;
+    requestAnimationFrame(layout);
+  }).catch(function(err){
+    toast(err.message || '无法打开裁剪');
   });
 }
 
@@ -1251,6 +1570,7 @@ function closeSheet(skipReturnCheck){
     return;
   }
   window._closetPrefillCat = '';
+  clearAiCropSession();
   // 任意阶段关闭弹窗：清除打卡临时图片与勾选缓存（跳转添加衣物时保留）
   if(!checkinPendingReturn){
     if(typeof closeCheckinPickOverlay === 'function') closeCheckinPickOverlay();
@@ -3144,16 +3464,14 @@ function continueAIAfterItemChosen(cloth, publicUrl, local, resultArea){
     finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品，请核对后确认入库');
     return;
   }
-  // 订单截图：始终本地左侧缩略图（不依赖模型 crop）
-  cloth.thumbBox = resolveOrderThumbBox(null, cloth.itemIndex || 0);
+  cloth.thumbBox = resolveOrderThumbBox(cloth.thumbBox, cloth.itemIndex || 0);
+  setAiCropSession(local, publicUrl, cloth.thumbBox, cloth.itemIndex || 0);
   cropOrderProductThumbBlob(local.img, cloth.thumbBox, cloth.itemIndex || 0).then(function(blob){
     return uploadImage(blob).then(function(thumbUrl){
-      if(local.objectUrl) URL.revokeObjectURL(local.objectUrl);
       finishAIClothPreview(cloth, normalizePublicUrl(thumbUrl), resultArea, '已选择商品并裁剪主图，请核对后确认入库');
     });
   }).catch(function(err){
     console.warn('[AI衣橱] 选件后裁剪失败', err);
-    if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
     finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品（裁剪失败，暂用整图），请核对后确认入库');
   });
 }
@@ -3167,16 +3485,15 @@ function runAIParseToPreview(parsed, publicUrl, local, resultArea){
     finishAIClothPreview(parsed, publicUrl, resultArea, '解析完成，请核对后确认入库');
     return;
   }
-  parsed.thumbBox = resolveOrderThumbBox(null, parsed.itemIndex || 0);
+  parsed.thumbBox = resolveOrderThumbBox(parsed.thumbBox, parsed.itemIndex || 0);
+  setAiCropSession(local, publicUrl, parsed.thumbBox, parsed.itemIndex || 0);
   resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>裁剪商品主图…</div>';
   return cropOrderProductThumbBlob(local.img, parsed.thumbBox, parsed.itemIndex || 0).then(function(blob){
     return uploadImage(blob).then(function(thumbUrl){
-      if(local.objectUrl) URL.revokeObjectURL(local.objectUrl);
       finishAIClothPreview(parsed, normalizePublicUrl(thumbUrl), resultArea, '订单解析完成：已裁剪商品图，请核对后确认入库');
     });
   }).catch(function(cropErr){
     console.warn('[AI衣橱] 商品图裁剪失败，回退整图', cropErr);
-    if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
     finishAIClothPreview(parsed, publicUrl, resultArea, '订单解析完成（商品图裁剪失败，暂用整图），请核对后确认入库');
   });
 }
@@ -3184,6 +3501,7 @@ function runAIParseToPreview(parsed, publicUrl, local, resultArea){
 function onAIFile(e){
   // 淘宝订单截图模式：整图上传供视觉解析 →（多件则先选）→ 裁剪 → 预览确认 → 入库
   var file = e.target.files[0]; if(!file) return;
+  clearAiCropSession();
   var resultArea = $('#ai-result');
   resultArea.classList.remove('hidden');
   var localPreview = URL.createObjectURL(file);
@@ -3233,7 +3551,7 @@ function renderClothForm(existing, isAI, opts){
     html += '<div class="text-xs text-warn bg-warn/10 rounded-lg p-2.5 space-y-1">';
     html += '<div>以下为'+aiLabel+'预览，可修改名称/分类/颜色/价格/日期/季节/标签后确认入库</div>';
     html += '<div class="font-medium">⚠️价格优先取实付款；无年份时日期默认补当前年，请核对。</div>';
-    html += '<div class="font-medium">⚠️商品图为订单缩略图裁剪，不准确时可点上方图片重新上传。</div>';
+    html += '<div class="font-medium">⚠️商品图为订单缩略图裁剪，不准确时可点图片 → 裁剪图片（基于订单原图）。</div>';
     if(existing && existing.nameRaw && existing.name && existing.nameRaw !== existing.name){
       html += '<div class="text-mute">完整标题：'+esc(existing.nameRaw)+'</div>';
     }
@@ -3245,12 +3563,18 @@ function renderClothForm(existing, isAI, opts){
     }
     html += '</div>';
   }
-  // 图片
+  // 图片：有图时点开编辑菜单（裁剪/重传），无图时上传；file input 不绑在图片上
   html += '<div><div class="text-xs text-mute mb-1">图片</div>';
-  html += '<label><input id="f-file" type="file" accept="image/*" class="hidden" />';
-  if(c.photo) html += photoImgHtml(c.photo, 'form-cloth-photo', 'id="f-photo"');
-  else html += '<div id="f-photo" class="form-cloth-photo-empty">点击上传图片（可选）</div>';
-  html += '</label></div>';
+  html += '<input id="f-file" type="file" accept="image/*" class="hidden" />';
+  if(c.photo){
+    html += '<button type="button" id="f-photo-edit" class="form-photo-edit-btn" aria-label="编辑图片">';
+    html += photoImgHtml(c.photo, 'form-cloth-photo', 'id="f-photo"');
+    html += '</button>';
+    html += '<div class="text-xs text-mute text-center mt-1.5">点击图片：裁剪 / 重新上传</div>';
+  } else {
+    html += '<button type="button" id="f-photo-upload" class="form-cloth-photo-empty">点击上传图片（可选）</button>';
+  }
+  html += '</div>';
   html += textInput('f-name','名称',c.name);
   html += selectInputEmpty('f-category','品类',CATEGORIES,c.category);
   // 季节多选
@@ -3349,19 +3673,73 @@ function renderClothForm(existing, isAI, opts){
     }
   });
   window._formPhotoUploading = false;
+  // 编辑已有衣物：无会话时以当前照片为可裁剪源（未改库结构，无法还原更早的原图）
+  if(!getPhotoEditSession() && (window._formPhoto || c.photo)){
+    window._formPhotoSource = window._formPhotoSource || normalizePublicUrl(window._formPhoto || c.photo);
+  }
+
+  function applyCroppedPhoto(thumbUrl, finalBox){
+    if(existing) existing.photo = thumbUrl;
+    c.photo = thumbUrl;
+    if(existing) existing.thumbBox = finalBox;
+    c.thumbBox = finalBox;
+  }
+
+  function triggerPhotoReupload(){
+    var input = $('#f-file');
+    if(input) input.click();
+  }
+
+  var photoEditBtn = $('#f-photo-edit');
+  if(photoEditBtn){
+    photoEditBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      openPhotoEditActions({
+        onCrop: function(){
+          openManualCropEditor(applyCroppedPhoto);
+        },
+        onReupload: triggerPhotoReupload
+      });
+    });
+  }
+  var photoUploadBtn = $('#f-photo-upload');
+  if(photoUploadBtn){
+    photoUploadBtn.addEventListener('click', function(e){
+      e.preventDefault();
+      triggerPhotoReupload();
+    });
+  }
+
   $('#f-file').addEventListener('change', function(e){
     var file=e.target.files[0]; if(!file) return;
-    var localUrl = URL.createObjectURL(file);
-    setFormPhotoPreview(localUrl);
+    e.target.value = '';
+    clearPhotoEditSession();
     window._formPhotoUploading = true;
     toast('图片上传中…');
-    uploadImage(file).then(function(publicUrl){
-      var clothId = (existing && existing.id) ? existing.id : null;
-      return commitClothPhoto(clothId, publicUrl).then(function(){
-        window._formPhotoUploading = false;
-        if(existing) existing.photo = normalizePublicUrl(publicUrl);
-        c.photo = normalizePublicUrl(publicUrl);
-        toast('图片已上传');
+    loadLocalImageFile(file).then(function(local){
+      if($('#f-photo')) setFormPhotoPreview(local.objectUrl);
+      return uploadImage(file).then(function(publicUrl){
+        publicUrl = normalizePublicUrl(publicUrl);
+        // 原始图写入会话（general）；AI 订单自动裁剪仍走 setAiCropSession
+        setPhotoEditSession(local, publicUrl, null, 0, 'general');
+        var clothId = (existing && existing.id) ? existing.id : null;
+        return commitClothPhoto(clothId, publicUrl).then(function(){
+          window._formPhotoUploading = false;
+          if(existing) existing.photo = publicUrl;
+          c.photo = publicUrl;
+          var next = collectForm(c, seasons, scenesSel);
+          if(existing && existing.id){
+            next.id = existing.id;
+            next.createdAt = existing.createdAt;
+            next.retiredAt = existing.retiredAt;
+          }
+          renderClothForm(next, isAI, opts);
+          toast('图片已上传，可点击图片裁剪');
+        });
+      }).catch(function(err){
+        try{ URL.revokeObjectURL(local.objectUrl); }catch(e2){ /* ignore */ }
+        throw err;
       });
     }).catch(function(err){
       window._formPhotoUploading = false;
@@ -3383,6 +3761,7 @@ function renderClothForm(existing, isAI, opts){
     showLoading(isNew ? '入库中…' : '保存中…');
     persistCloth(data, isNew).then(function(){
       hideLoading();
+      clearPhotoEditSession();
       if(checkinPendingReturn){
         returnToCheckinModal(true);
       } else if(opts.fromDetail && existing && existing.id){
@@ -3497,7 +3876,11 @@ function openClothDetail(id){
   html += '<button id="detail-export" class="w-full text-brand-dark text-sm py-2">导出本条数据</button>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
-  $('#detail-edit').addEventListener('click', function(){ window._formPhoto=c.photo; renderClothForm(c, false, { fromDetail:true, clothId:id }); });
+  $('#detail-edit').addEventListener('click', function(){
+    window._formPhoto = c.photo;
+    window._formPhotoSource = c.photo || '';
+    renderClothForm(c, false, { fromDetail:true, clothId:id });
+  });
   $all('.log-del-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
       e.stopPropagation();
