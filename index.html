@@ -46,12 +46,60 @@
   };
 </script>
 <style>
-  :root{ --safe-top: env(safe-area-inset-top,0px); --safe-bottom: env(safe-area-inset-bottom,0px); --font-soft:'Nunito',"PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif; }
+  :root{
+    --font-soft:'Nunito',"PingFang SC","Hiragino Sans GB","Microsoft YaHei UI",sans-serif;
+    /* 旧 iOS 用 constant，新版用 env；桌面默认为 0 */
+    --safe-top: 0px;
+    --safe-top: constant(safe-area-inset-top);
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: 0px;
+    --safe-bottom: constant(safe-area-inset-bottom);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-top-effective: var(--safe-top);
+    --page-top-base: 20px;
+    --today-top-base: 12px;
+    --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
+    --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+  }
+  /* 窄屏略增顶部呼吸空间，避免标题贴顶；桌面宽屏仍用上面的默认值 */
+  @media (max-width: 48rem){
+    :root{
+      --page-top-base: 28px;
+      --today-top-base: 16px;
+      --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
+      --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+    }
+  }
+  /*
+   * iPhone Safari / 主屏幕 PWA：
+   * viewport-fit=cover + status-bar default 时，页面会画进状态栏区域，
+   * 但 env(safe-area-inset-top) 常为 0（或 iOS 回归），标题会被遮挡/「折叠」。
+   * 仅在 standalone 窄屏强制最低顶距；env 正常时取更大值，不伤桌面。
+   */
+  @supports (-webkit-touch-callout: none){
+    @media (display-mode: standalone), (display-mode: fullscreen){
+      @media (max-width: 48rem){
+        :root{
+          --safe-top-effective: max(var(--safe-top), 47px);
+          --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
+          --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+        }
+      }
+    }
+  }
   *{ -webkit-tap-highlight-color: transparent; }
   html{ font-size:17px; }
   html,body{ overscroll-behavior-y: none; }
   body,#app,#tabbar,#sheet,#toast{ font-family:var(--font-soft); font-weight:400; -webkit-font-smoothing:antialiased; }
   body{ background:#FBF7F0; color:#1F1B16; line-height:1.65; }
+  /* 页面顶栏标题：避免行高过紧导致字形上下被裁 */
+  .page-heading{
+    line-height:1.35;
+    overflow:visible;
+    min-width:0;
+    padding-block:0.125rem;
+  }
+  .page-shell{ box-sizing:border-box; }
   #app .text-\[10px\]{ font-size:0.75rem !important; line-height:1.55 !important; }
   #app .text-\[11px\]{ font-size:0.8125rem !important; line-height:1.55 !important; }
   #app .text-\[13px\]{ font-size:0.9375rem !important; line-height:1.6 !important; }
@@ -194,8 +242,9 @@
   .weather-profile-name-row{ display:flex; align-items:center; gap:0.75rem; min-width:0; width:100%; }
   .weather-profile-name{
     flex:1; min-width:0; max-width:100%;
-    font-size:1.125rem; font-weight:600; line-height:1.25;
+    font-size:1.125rem; font-weight:600; line-height:1.35;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    padding-block:0.125rem;
   }
   .weather-city-row{ display:flex; align-items:center; justify-content:flex-start; gap:0.375rem; width:100%; min-height:1.375rem; }
   .weather-city-label{ flex:0 1 auto; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }

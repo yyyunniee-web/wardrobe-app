@@ -956,7 +956,7 @@ function viewToday(){
   }
 
   var html = '';
-  html += '<div class="today-compact px-4 pt-4" style="padding-top:calc(12px + var(--safe-top))">';
+  html += '<div class="today-compact page-shell px-4 pt-4" style="padding-top:var(--today-pad-top)">';
 
   // 板块1：今日综合信息（天气即景）
   html += '<div class="weather-card-compact section-gap">';
@@ -2231,11 +2231,11 @@ function clothListRowHtml(c){
 function viewClosetCategoryList(cat){
   var list = clothesInCategory(cat, { applySearch:false, sortKey:closetListSort });
   var html = '';
-  html += '<div class="px-5 pt-6" style="padding-top:calc(20px + var(--safe-top))">';
+  html += '<div class="page-shell px-5 pt-6" style="padding-top:var(--page-pad-top)">';
   html += '<div class="flex items-center justify-between mb-4 gap-2">';
   html += '<button type="button" id="closet-list-back" class="closet-list-back" aria-label="返回衣橱首页">';
   html += '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>返回</button>';
-  html += '<div class="text-lg font-semibold flex-1 text-center truncate">'+esc(cat)+'</div>';
+  html += '<div class="page-heading text-lg font-semibold flex-1 text-center truncate">'+esc(cat)+'</div>';
   html += '<button id="add-cloth" class="bg-brand text-white rounded-full px-3 py-2 text-sm flex items-center gap-1 flex-shrink-0">';
   html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加</button></div>';
 
@@ -2261,9 +2261,9 @@ function viewClosetCategoryList(cat){
 
 function viewClosetHome(){
   var html = '';
-  html += '<div class="px-5 pt-6" style="padding-top:calc(20px + var(--safe-top))">';
-  html += '<div class="flex items-center justify-between mb-4">';
-  html += '<div class="text-lg font-semibold">'+closetPageTitle()+'</div>';
+  html += '<div class="page-shell px-5 pt-6" style="padding-top:var(--page-pad-top)">';
+  html += '<div class="flex items-center justify-between gap-3 mb-4">';
+  html += '<div class="page-heading text-lg font-semibold">'+closetPageTitle()+'</div>';
   html += '<button id="add-cloth" class="bg-brand text-white rounded-full px-4 py-2 text-sm flex items-center gap-1">';
   html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加</button></div>';
 
@@ -3400,8 +3400,8 @@ function openAnalysisDimSheet(kind){
 
 function viewAnalysis(){
   var html = '';
-  html += '<div class="px-5 pt-6" style="padding-top:calc(20px + var(--safe-top))">';
-  html += '<div class="text-lg font-semibold mb-3">数据分析</div>';
+  html += '<div class="page-shell px-5 pt-6" style="padding-top:var(--page-pad-top)">';
+  html += '<div class="page-heading text-lg font-semibold mb-3">数据分析</div>';
 
   // 衣物购入时间范围（紧凑卡片）— 骨架优先，始终先渲染
   html += '<div class="bg-white rounded-2xl border border-line px-3 py-2.5 space-y-1.5 mb-3">';
@@ -3684,8 +3684,8 @@ function viewSettings(){
   var p = store.profile;
   var pref = p.prefStyles || [];
   var html = '';
-  html += '<div class="px-5 pt-6 space-y-4" style="padding-top:calc(20px + var(--safe-top))">';
-  html += '<div class="text-lg font-semibold">个人穿搭画像</div>';
+  html += '<div class="page-shell px-5 pt-6 space-y-4" style="padding-top:var(--page-pad-top)">';
+  html += '<div class="page-heading text-lg font-semibold">个人穿搭画像</div>';
 
   // 基础信息 + 穿搭偏好（同一卡片）
   html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-4">';
