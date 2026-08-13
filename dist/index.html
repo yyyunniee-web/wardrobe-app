@@ -22,7 +22,7 @@
       var isPwa = navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
       if (!isPwa) return;
       root.classList.add('is-ios-pwa');
-      /* 仅当 env(safe-area-inset-top) 实测为 0 时才启用 59px 兜底，避免与真实 inset 叠加出双倍空白 */
+      /* 探测 inset；顶部 pad 不再用固定 47/59 兜底（见 html.is-ios-pwa CSS） */
       var applyFallbackIfNeeded = function () {
         try {
           var probe = document.createElement('div');
@@ -106,20 +106,25 @@
     }
   }
   /*
-   * PWA standalone：优先使用真实 env(safe-area-inset-top)。
-   * 仅当 inset 实测为 0（html.safe-top-fallback，见 head 脚本）时才用 59px 兜底，
-   * 避免 max(safe-top, 59px) 在 inset 已存在时叠出「第二道刘海」空白。
-   * iOS 上 (display-mode:standalone) 常匹配失败，需配合 html.is-ios-pwa（navigator.standalone）。
+   * iOS PWA standalone 顶部（配合 apple-mobile-web-app-status-bar-style=default）：
+   * - default 状态栏不透明，系统已把 WebView 内容起点放在状态栏/刘海下方
+   * - 此时再叠加 env(safe-area-inset-top)(~47–59) + page-top-base(28)
+   *   → 总距约 75–87px，视觉上像「第二道刘海」空白
+   * - Safari 标签页 inset≈0，只有 28px，所以浏览器正常、PWA 偏大
+   * 修正：PWA 不再把 safe-top 计入顶部 pad，只保留与窄屏一致的呼吸空间。
    */
   html.is-ios-pwa{
-    --safe-top-effective: var(--safe-top);
-    --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
-    --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+    --safe-top-effective: 0px;
+    --page-top-base: 20px;
+    --today-top-base: 12px;
+    --page-pad-top: var(--page-top-base);
+    --today-pad-top: var(--today-top-base);
   }
+  /* inset 探测类保留，但不再用 47/59 固定值抬高顶部（避免二次刘海） */
   html.is-ios-pwa.safe-top-fallback{
-    --safe-top-effective: 59px;
-    --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
-    --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
+    --safe-top-effective: 0px;
+    --page-pad-top: var(--page-top-base);
+    --today-pad-top: var(--today-top-base);
   }
   *{ -webkit-tap-highlight-color: transparent; }
   html{
