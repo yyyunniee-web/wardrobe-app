@@ -10,6 +10,20 @@
 <link rel="apple-touch-icon" href="/icon-192.png" />
 <link rel="manifest" href="/manifest.webmanifest" />
 <title>个人智能穿搭衣橱</title>
+<script>
+  /* iOS 主屏幕：CSS display-mode:standalone 常不生效，必须用 navigator.standalone */
+  (function () {
+    try {
+      var ua = navigator.userAgent || '';
+      var ios = /iP(hone|ad|od)/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      if (!ios) return;
+      document.documentElement.classList.add('is-ios');
+      if (navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches) {
+        document.documentElement.classList.add('is-ios-pwa');
+      }
+    } catch (e) {}
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600&family=Quicksand:wght@400;500;600&display=swap" rel="stylesheet">
@@ -71,21 +85,26 @@
     }
   }
   /*
-   * iPhone Safari / 主屏幕 PWA：
-   * viewport-fit=cover + status-bar default 时，页面会画进状态栏区域，
-   * 但 env(safe-area-inset-top) 常为 0（或 iOS 回归），标题会被遮挡/「折叠」。
-   * 仅在 standalone 窄屏强制最低顶距；env 正常时取更大值，不伤桌面。
+   * 实测根因（非横向 ellipsis）：
+   * viewport-fit=cover + status-bar default 时内容画进状态栏，
+   * env(safe-area-inset-top) 常为 0；标题 top≈32px，47px 状态栏会竖向裁掉上半部（像「折叠」）。
+   * 注意：iOS 上 (display-mode:standalone) 经常匹配失败，需配合 html.is-ios-pwa（navigator.standalone）。
    */
   @supports (-webkit-touch-callout: none){
     @media (display-mode: standalone), (display-mode: fullscreen){
       @media (max-width: 48rem){
         :root{
-          --safe-top-effective: max(var(--safe-top), 47px);
+          --safe-top-effective: max(var(--safe-top), 59px);
           --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
           --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
         }
       }
     }
+  }
+  html.is-ios-pwa{
+    --safe-top-effective: max(var(--safe-top), 59px);
+    --page-pad-top: calc(var(--page-top-base) + var(--safe-top-effective));
+    --today-pad-top: calc(var(--today-top-base) + var(--safe-top-effective));
   }
   *{ -webkit-tap-highlight-color: transparent; }
   html{ font-size:17px; }
