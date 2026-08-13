@@ -1873,50 +1873,202 @@ function pickByCat(byCat, cats){
 }
 
 /* ---------- 今日：历史回溯 ---------- */
-function openHistory(){
-  var list = store.checkins.slice().sort(function(a,b){
+var historyDateFilter = '';
+var historyShowAll = false;
+
+function sortedCheckins(){
+  return store.checkins.slice().sort(function(a,b){
     if(a.date !== b.date) return a.date < b.date ? 1 : -1;
     var ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
     var tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
     return tb - ta;
   });
+}
+
+function filteredHistoryCheckins(){
+  var list = sortedCheckins();
+  if(historyShowAll || !historyDateFilter) return list;
+  return list.filter(function(c){ return c.date === historyDateFilter; });
+}
+
+function historyListHtml(){
+  var list = filteredHistoryCheckins();
+  var html = '';
+  if(!store.checkins.length){
+    html += '<div class="text-center text-mute text-sm py-8">还没有历史打卡记录</div>';
+  } else if(!list.length){
+    html += '<div class="text-center text-mute text-sm py-8">该日期暂无穿搭记录</div>';
+  } else {
+    list.forEach(function(c){
+      html += '<div class="history-swipe-row" data-checkin-id="'+esc(c.id)+'">';
+      html += '<div class="history-swipe-actions"><button type="button" class="history-swipe-delete" data-checkin-id="'+esc(c.id)+'">删除</button></div>';
+      html += '<button type="button" class="history-swipe-content checkin-history-item" data-checkin-id="'+esc(c.id)+'" data-checkin-date="'+esc(c.date)+'">'+checkinCard(c)+'</button>';
+      html += '</div>';
+    });
+  }
+  return html;
+}
+
+function refreshHistoryList(){
+  var wrap = $('#history-list-wrap');
+  var hint = $('#history-date-hint');
+  var allBtn = $('#history-show-all');
+  if(wrap) wrap.innerHTML = historyListHtml();
+  if(hint){
+    var emptyDay = !historyShowAll && historyDateFilter && filteredHistoryCheckins().length === 0 && store.checkins.length > 0;
+    hint.classList.toggle('hidden', !emptyDay);
+  }
+  if(allBtn) allBtn.classList.toggle('on', !!historyShowAll);
+  bindHistoryListInteractions();
+}
+
+function closeAllHistorySwipes(exceptRow){
+  $all('.history-swipe-content').forEach(function(el){
+    if(exceptRow && exceptRow.contains(el)) return;
+    el.style.transform = '';
+    el.classList.remove('open');
+  });
+}
+
+function bindHistorySwipe(row){
+  var content = row.querySelector('.history-swipe-content');
+  if(!content) return;
+  var startX = 0, startY = 0, dx = 0, tracking = false, horizontal = null;
+  var opened = false;
+  var threshold = 56;
+  var maxSlide = 72;
+
+  function setOpen(on){
+    opened = on;
+    content.classList.toggle('open', on);
+    content.style.transform = on ? 'translateX(-'+maxSlide+'px)' : '';
+  }
+
+  content.addEventListener('touchstart', function(e){
+    if(!e.touches || !e.touches[0]) return;
+    closeAllHistorySwipes(row);
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dx = 0;
+    tracking = true;
+    horizontal = null;
+    content.style.transition = 'none';
+  }, { passive:true });
+
+  content.addEventListener('touchmove', function(e){
+    if(!tracking || !e.touches || !e.touches[0]) return;
+    var x = e.touches[0].clientX;
+    var y = e.touches[0].clientY;
+    var adx = Math.abs(x - startX);
+    var ady = Math.abs(y - startY);
+    if(horizontal == null && (adx > 6 || ady > 6)){
+      horizontal = adx > ady;
+    }
+    if(!horizontal) return;
+    dx = x - startX;
+    var tx = opened ? -maxSlide + dx : dx;
+    if(tx > 0) tx = 0;
+    if(tx < -maxSlide) tx = -maxSlide;
+    content.style.transform = 'translateX('+tx+'px)';
+  }, { passive:true });
+
+  content.addEventListener('touchend', function(){
+    if(!tracking) return;
+    tracking = false;
+    content.style.transition = '';
+    if(!horizontal){ dx = 0; return; }
+    var current = opened ? -maxSlide + dx : dx;
+    setOpen(current < -threshold);
+    dx = 0;
+    horizontal = null;
+  });
+
+  content.addEventListener('click', function(e){
+    if(opened){
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false);
+      return;
+    }
+    openCheckinDetail(content.dataset.checkinId);
+  });
+}
+
+function bindHistoryListInteractions(){
+  $all('.history-swipe-row').forEach(function(row){ bindHistorySwipe(row); });
+  $all('.history-swipe-delete').forEach(function(btn){
+    btn.addEventListener('click', function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      deleteCheckinById(btn.dataset.checkinId);
+    });
+  });
+}
+
+function deleteCheckinById(id){
+  if(!id) return;
+  var target = store.checkins.filter(function(c){ return c.id === id; })[0];
+  if(!target) return;
+  if(!confirm('确定删除这条穿搭日记吗？删除后将同步到云端。')) return;
+  var prevCheckins = clone(store.checkins);
+  var prevLogs = clone(store.logs);
+  store.checkins = store.checkins.filter(function(c){ return c.id !== id; });
+  // 同步移除同日、同衣物、来自打卡/推荐的穿着日志，避免穿着次数虚高
+  if(target.items && target.items.length){
+    var ids = {};
+    target.items.forEach(function(it){ if(it && it.id) ids[it.id] = true; });
+    store.logs = store.logs.filter(function(l){
+      if(l.date !== target.date) return true;
+      if(!ids[l.clothId]) return true;
+      if(l.source === 'checkin' || l.source === 'recommend') return false;
+      return true;
+    });
+  }
+  showLoading('删除中…');
+  Promise.all([persistCheckins(), persistLogs()]).then(function(){
+    hideLoading();
+    toast('已删除');
+    refreshHistoryList();
+    if(typeof render === 'function' && currentTab === 'today') render();
+  }).catch(function(err){
+    store.checkins = prevCheckins;
+    store.logs = prevLogs;
+    hideLoading();
+    toast('删除失败：'+(err.message||err));
+    refreshHistoryList();
+  });
+}
+
+function openHistory(){
+  historyShowAll = false;
+  historyDateFilter = todayStr();
   var html = '<div class="sticky top-0 bg-paper pt-4 pb-2 px-5 z-10 border-b border-line">';
   html += '<div class="flex items-center gap-2 min-w-0">';
   html += '<div class="text-base font-semibold shrink-0 whitespace-nowrap">穿搭日记回溯</div>';
-  html += '<input type="date" id="history-date-picker" class="flex-1 min-w-0 max-w-[9.5rem] text-xs border border-line rounded-lg px-2 py-1 bg-white text-ink" aria-label="选择日期">';
+  html += '<input type="date" id="history-date-picker" class="flex-1 min-w-0 max-w-[9.5rem] text-xs border border-line rounded-lg px-2 py-1 bg-white text-ink" value="'+esc(historyDateFilter)+'" aria-label="选择日期">';
+  html += '<button type="button" id="history-show-all" class="history-all-btn">全部</button>';
   html += '<button type="button" class="close-sheet text-mute p-1 shrink-0"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>';
   html += '</div>';
   html += '<div id="history-date-hint" class="hidden text-xs text-mute text-center pt-2 pb-0.5 opacity-80">该日期暂无穿搭记录</div>';
   html += '</div>';
-  html += '<div class="px-5 space-y-3">';
-  if(!list.length){
-    html += '<div class="text-center text-mute text-sm py-8">还没有历史打卡记录</div>';
-  } else {
-    list.forEach(function(c){
-      html += '<button type="button" class="w-full text-left checkin-history-item" data-checkin-id="'+esc(c.id)+'" data-checkin-date="'+esc(c.date)+'">'+checkinCard(c)+'</button>';
-    });
-  }
-  html += '<div class="h-2"></div></div>';
+  html += '<div id="history-list-wrap" class="px-5 space-y-3">'+historyListHtml()+'</div>';
+  html += '<div class="h-2"></div>';
   openSheet(html);
-  $all('.checkin-history-item').forEach(function(btn){
-    btn.addEventListener('click', function(){ openCheckinDetail(btn.dataset.checkinId); });
-  });
+  bindHistoryListInteractions();
+  refreshHistoryList();
+
   var picker = $('#history-date-picker');
-  var hint = $('#history-date-hint');
+  var allBtn = $('#history-show-all');
   if(picker) picker.addEventListener('change', function(){
-    var val = picker.value;
-    if(hint) hint.classList.add('hidden');
-    if(!val) return;
-    var target = null;
-    $all('.checkin-history-item').some(function(btn){
-      if(btn.dataset.checkinDate === val){ target = btn; return true; }
-      return false;
-    });
-    if(target){
-      target.scrollIntoView({ behavior:'smooth', block:'center' });
-    } else if(hint){
-      hint.classList.remove('hidden');
-    }
+    historyDateFilter = picker.value || todayStr();
+    historyShowAll = false;
+    refreshHistoryList();
+  });
+  if(allBtn) allBtn.addEventListener('click', function(){
+    historyShowAll = true;
+    historyDateFilter = '';
+    if(picker) picker.value = '';
+    refreshHistoryList();
   });
 }
 

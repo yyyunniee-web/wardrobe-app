@@ -317,6 +317,30 @@
     width:100%;
     box-sizing:border-box;
   }
+  /* 穿搭日记：左滑删除 */
+  .history-swipe-row{
+    position:relative; overflow:hidden; border-radius:1rem;
+  }
+  .history-swipe-actions{
+    position:absolute; inset:0 0 0 auto; width:4.5rem;
+    display:flex; align-items:stretch; justify-content:flex-end;
+    background:#D26565; z-index:0;
+  }
+  .history-swipe-delete{
+    width:4.5rem; border:none; background:transparent; color:#fff;
+    font-size:0.8125rem; font-weight:600; padding:0;
+  }
+  .history-swipe-content{
+    position:relative; z-index:1; background:#FBF7F0;
+    transition:transform .18s ease; will-change:transform;
+    border:none; padding:0; width:100%; text-align:left; display:block;
+  }
+  .history-swipe-content.open{ transition:transform .18s ease; }
+  .history-all-btn{
+    flex-shrink:0; border:none; background:transparent; color:#A8764E;
+    font-size:0.75rem; font-weight:500; padding:0.25rem 0.125rem; white-space:nowrap;
+  }
+  .history-all-btn.on{ font-weight:600; }
   .ck-confirm-btn:disabled{ opacity:0.45; cursor:not-allowed; }
   .ck-upload-zone{
     border:2px dashed #EDE6DA; border-radius:1rem; background:#FFFCFA;
