@@ -959,9 +959,10 @@ function viewToday(){
   html += '<div class="today-compact page-shell px-4 pt-4" style="padding-top:var(--today-pad-top)">';
 
   // 板块1：今日综合信息（天气即景）
+  // 结构：identity（头像+昵称）与 almanac（日期农历）分离，窄屏可上下排布，避免昵称被挤成省略
   html += '<div class="weather-card-compact section-gap">';
   html += '<div class="weather-card-top">';
-  html += '<div class="weather-card-left">';
+  html += '<div class="weather-identity">';
   html += '<div class="weather-profile-name-row">';
   if(p.avatar){
     html += '<div class="avatar-circle" style="width:3.375rem;height:3.375rem;border:2px solid rgba(255,251,245,0.9)"><img src="'+p.avatar+'" alt="" /></div>';
@@ -970,20 +971,24 @@ function viewToday(){
   }
   html += '<div class="weather-profile-name">'+(p.name ? esc(p.name) : '你好，穿搭达人')+'</div>';
   html += '</div>';
-  html += '<div class="weather-city-row mt-2">';
+  html += '</div>';
+  html += '<div class="weather-almanac-meta">';
+  if(almanac){
+    html += '<div class="weather-almanac-meta-inner">';
+    html += '<div class="text-[10px] text-mute/85 leading-snug">'+esc(almanac.solarText)+'</div>';
+    html += '<div class="text-[10px] text-mute/75 mt-0.5">'+esc(almanac.lunarText)+'</div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  html += '<div class="weather-card-left">';
+  html += '<div class="weather-city-row">';
   html += '<div class="weather-city-label text-[11px] text-mute/90 flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'+esc(w.city)+'</div>';
   html += '<button class="weather-edit text-[10px] text-brand-dark border border-brand/25 rounded-full px-2 py-0.5 flex-shrink-0 bg-white/60">修改</button>';
   html += '</div>';
   html += '<div class="weather-brief mt-1.5"><span class="text-xl font-light whitespace-nowrap">'+weatherTempText(day)+'°</span><span class="weather-brief-cond text-[11px] text-mute/85">'+esc(weatherCondText(day))+(day.desc?(' · '+esc(day.desc)):'')+'</span></div>';
   html += '</div>';
   html += '<div class="weather-card-right">';
-  if(almanac){
-    html += '<div class="text-right">';
-    html += '<div class="text-[10px] text-mute/85 leading-snug">'+esc(almanac.solarText)+'</div>';
-    html += '<div class="text-[10px] text-mute/75 mt-0.5">'+esc(almanac.lunarText)+'</div>';
-    html += '</div>';
-  }
-  html += '<div class="flex weather-day-switch rounded-full p-0.5 text-[10px] flex-shrink-0 mt-1.5">';
+  html += '<div class="flex weather-day-switch rounded-full p-0.5 text-[10px] flex-shrink-0">';
   html += '<button class="day-swt px-2.5 py-0.5 rounded-full '+(todayViewDay===0?'bg-white shadow-sm text-ink':'text-mute')+'" data-day="0">今日</button>';
   html += '<button class="day-swt px-2.5 py-0.5 rounded-full '+(todayViewDay===1?'bg-white shadow-sm text-ink':'text-mute')+'" data-day="1">明日</button>';
   html += '</div>';
