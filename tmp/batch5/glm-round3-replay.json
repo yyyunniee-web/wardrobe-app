@@ -1,0 +1,435 @@
+{
+  "ranAt": "2026-08-13T13:32:24.634Z",
+  "mode": "replay-round3-on-saved-glm-raw",
+  "results": [
+    {
+      "id": 1,
+      "label": "上衣",
+      "mapped": {
+        "name": "法式复古风蕾丝印花短袖T恤上衣",
+        "nameRaw": "法式复古风蕾丝印花短袖T恤女夏季新款小众设计显瘦辣妹上衣潮",
+        "category": "上衣",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "color": "白",
+        "colorRaw": "白色",
+        "fabric": "",
+        "buyDate": "2026-05-21",
+        "price": 65.9,
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0,
+        "scenes": [],
+        "itemCount": 1,
+        "items": [
+          {
+            "skuLabel": "白色假两件T恤【高质量】:M",
+            "name": "法式复古风蕾丝印花短袖T恤女夏季新款小众设计显瘦辣妹上衣潮",
+            "category": "上衣",
+            "price": 65.9,
+            "colorRaw": "白色",
+            "color": "白",
+            "fabricList": [
+              "蕾丝"
+            ],
+            "fabric": "蕾丝",
+            "cropSuggestion": {
+              "x": "",
+              "y": "",
+              "width": "",
+              "height": ""
+            },
+            "index": 0
+          }
+        ],
+        "needsItemPick": false,
+        "rawModelJson": {
+          "itemCount": 1,
+          "items": [
+            {
+              "skuLabel": "白色假两件T恤【高质量】:M",
+              "name": "法式复古风蕾丝印花短袖T恤女夏季新款小众设计显瘦辣妹上衣潮",
+              "category": "上衣",
+              "price": "¥65.90",
+              "colorRaw": "白色",
+              "color": "白",
+              "fabricList": [
+                "蕾丝"
+              ],
+              "fabric": "蕾丝",
+              "cropSuggestion": {
+                "x": "",
+                "y": "",
+                "width": "",
+                "height": ""
+              }
+            }
+          ],
+          "name": "法式复古风蕾丝印花短袖T恤女夏季新款小众设计显瘦辣妹上衣潮",
+          "nameRaw": "法式复古风蕾丝印花短袖T恤女夏季新款小众设计显瘦辣妹上衣潮",
+          "category": "上衣",
+          "price": "¥65.90",
+          "purchaseDate": "2024-05-21",
+          "season": "夏",
+          "scenes": [],
+          "fabric": "蕾丝",
+          "fabricList": [
+            "蕾丝"
+          ],
+          "colorRaw": "白色",
+          "color": "白",
+          "tags": [],
+          "confidence": ""
+        }
+      },
+      "crop": {
+        "ok": true,
+        "sx": 41,
+        "sy": 118,
+        "sw": 246,
+        "sh": 197
+      },
+      "needsItemPick": false
+    },
+    {
+      "id": 2,
+      "label": "裙子",
+      "mapped": {
+        "name": "法式v领背心无袖亚麻连衣裙",
+        "nameRaw": "法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙",
+        "category": "连衣裙",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "color": "白",
+        "colorRaw": "白色",
+        "fabric": "麻",
+        "buyDate": "2026-04-01",
+        "price": 97,
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0,
+        "scenes": [],
+        "itemCount": 1,
+        "items": [
+          {
+            "skuLabel": "白色:M",
+            "name": "法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙",
+            "category": "裙装",
+            "price": 97,
+            "colorRaw": "白色:M",
+            "color": "白",
+            "fabricList": [
+              "亚麻"
+            ],
+            "fabric": "亚麻",
+            "cropSuggestion": {
+              "x": "0.067",
+              "y": "0.038",
+              "width": "0.858",
+              "height": "0.906"
+            },
+            "index": 0
+          }
+        ],
+        "needsItemPick": false,
+        "rawModelJson": {
+          "itemCount": 1,
+          "items": [
+            {
+              "skuLabel": "白色:M",
+              "name": "法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙",
+              "category": "裙装",
+              "price": "¥97",
+              "colorRaw": "白色:M",
+              "color": "白",
+              "fabricList": [
+                "亚麻"
+              ],
+              "fabric": "亚麻",
+              "cropSuggestion": {
+                "x": "0.067",
+                "y": "0.038",
+                "width": "0.858",
+                "height": "0.906"
+              }
+            }
+          ],
+          "name": "法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙",
+          "nameRaw": "法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙",
+          "category": "裙装",
+          "price": "¥97",
+          "purchaseDate": "2024-04",
+          "season": "夏",
+          "scenes": [],
+          "fabric": "亚麻",
+          "fabricList": [
+            "亚麻"
+          ],
+          "colorRaw": "白色:M",
+          "color": "白",
+          "tags": [],
+          "confidence": "高",
+          "cropSuggestion": {
+            "x": "0.067",
+            "y": "0.038",
+            "width": "0.858",
+            "height": "0.906"
+          }
+        }
+      },
+      "crop": {
+        "ok": true,
+        "sx": 40,
+        "sy": 123,
+        "sw": 237,
+        "sh": 205
+      },
+      "needsItemPick": false
+    },
+    {
+      "id": 3,
+      "label": "裤子(多件)",
+      "mapped": {
+        "name": "美式修身德绒瑜伽裤",
+        "nameRaw": "美式修身德绒瑜伽裤子高个子春秋款收腰显瘦外套卫衣休闲运动套装",
+        "category": "裤装",
+        "seasons": [
+          "春",
+          "冬"
+        ],
+        "color": "黑",
+        "colorRaw": "黑色",
+        "fabric": "德绒",
+        "buyDate": "2026-04-08",
+        "price": 89,
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0,
+        "scenes": []
+      },
+      "crop": {
+        "ok": true,
+        "sx": 34,
+        "sy": 123,
+        "sw": 202,
+        "sh": 205
+      },
+      "needsItemPick": true
+    },
+    {
+      "id": 4,
+      "label": "鞋子",
+      "mapped": {
+        "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋",
+        "nameRaw": "MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯",
+        "category": "鞋",
+        "seasons": [
+          "春"
+        ],
+        "color": "灰",
+        "colorRaw": "灰色/金属银",
+        "fabric": "",
+        "buyDate": "2026-05-15",
+        "price": 310.22,
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0,
+        "scenes": [
+          "休闲"
+        ],
+        "itemCount": 1,
+        "items": [
+          {
+            "skuLabel": "灰色/金属银;36[220mm]",
+            "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯",
+            "category": "鞋",
+            "price": 310.22,
+            "colorRaw": "灰色/金属银",
+            "color": "灰",
+            "fabricList": [],
+            "cropSuggestion": {
+              "x": "",
+              "y": "",
+              "width": "",
+              "height": ""
+            },
+            "index": 0
+          }
+        ],
+        "needsItemPick": false,
+        "rawModelJson": {
+          "itemCount": 1,
+          "items": [
+            {
+              "skuLabel": "灰色/金属银;36[220mm]",
+              "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯",
+              "category": "鞋",
+              "price": "¥310.22",
+              "colorRaw": "灰色/金属银",
+              "color": "灰",
+              "fabricList": [],
+              "cropSuggestion": {
+                "x": "",
+                "y": "",
+                "width": "",
+                "height": ""
+              }
+            }
+          ],
+          "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯",
+          "nameRaw": "MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯",
+          "category": "鞋",
+          "price": "¥310.22",
+          "purchaseDate": "2024-05-15",
+          "season": "",
+          "scenes": [
+            "休闲"
+          ],
+          "fabricList": [],
+          "colorRaw": "灰色/金属银",
+          "color": "灰",
+          "tags": [],
+          "confidence": "",
+          "cropSuggestion": {
+            "x": "",
+            "y": "",
+            "width": "",
+            "height": ""
+          }
+        }
+      },
+      "crop": {
+        "ok": true,
+        "sx": 41,
+        "sy": 115,
+        "sw": 246,
+        "sh": 191
+      },
+      "needsItemPick": false
+    },
+    {
+      "id": 5,
+      "label": "外套",
+      "mapped": {
+        "name": "冰丝针织短款黑色披肩外套",
+        "nameRaw": "冰丝针织透气开衩短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套",
+        "category": "外套",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "color": "黑",
+        "colorRaw": "黑色",
+        "fabric": "冰丝+针织",
+        "buyDate": "2026-03-26",
+        "price": 55.94,
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0,
+        "scenes": [],
+        "itemCount": 1,
+        "items": [
+          {
+            "skuLabel": "黑色;M",
+            "name": "冰丝针织透气开衩短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套",
+            "category": "外套",
+            "price": 55.94,
+            "colorRaw": "黑色",
+            "color": "黑",
+            "fabricList": [
+              "冰丝",
+              "针织"
+            ],
+            "fabric": "冰丝+针织",
+            "cropSuggestion": {
+              "x": "",
+              "y": "",
+              "width": "",
+              "height": ""
+            },
+            "index": 0
+          }
+        ],
+        "needsItemPick": false,
+        "rawModelJson": {
+          "itemCount": 1,
+          "items": [
+            {
+              "skuLabel": "黑色;M",
+              "name": "冰丝针织透气开衩短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套",
+              "category": "外套",
+              "price": "¥55.94",
+              "colorRaw": "黑色",
+              "color": "黑",
+              "fabricList": [
+                "冰丝",
+                "针织"
+              ],
+              "fabric": "冰丝+针织",
+              "cropSuggestion": {
+                "x": "",
+                "y": "",
+                "width": "",
+                "height": ""
+              }
+            }
+          ],
+          "name": "冰丝针织透气开衩短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套",
+          "nameRaw": "冰丝针织透气开衩短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套",
+          "category": "外套",
+          "price": "¥55.94",
+          "purchaseDate": "2024-03-26",
+          "season": "夏",
+          "scenes": [],
+          "fabric": "冰丝+针织",
+          "fabricList": [
+            "冰丝",
+            "针织"
+          ],
+          "colorRaw": "黑色",
+          "color": "黑",
+          "tags": [],
+          "confidence": "",
+          "cropSuggestion": {
+            "x": "",
+            "y": "",
+            "width": "",
+            "height": ""
+          }
+        }
+      },
+      "crop": {
+        "ok": true,
+        "sx": 41,
+        "sy": 117,
+        "sw": 246,
+        "sh": 196
+      },
+      "needsItemPick": false
+    }
+  ]
+}

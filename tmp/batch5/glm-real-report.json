@@ -1,0 +1,422 @@
+{
+  "ranAt": "2026-08-13T13:46:11.547Z",
+  "model": "glm-4v-flash",
+  "round": 4,
+  "results": [
+    {
+      "id": 1,
+      "label": "上衣",
+      "error": null,
+      "rawText": "{  \n  \"itemCount\": 1,  \n  \"items\": [ {  \n      \"skuLabel\": \"白色假两件T恤【高质量】;M\",   \n      \"name\": \"法式复古风蕾丝印花短袖T恤\",  \n      \"category\": \"上衣\",  \n      \"price\": \"¥65.90\",  \n      \"colorRaw\": \"白色\",  \n      \"color\": \"白\",  \n      \"fabricList\": [\"蕾丝\"],  \n      \"fabric\": \"蕾丝\",  \n      \"cropSuggestion\": {  \n        \"x\": \"\",  \n        \"y\": \"\",  \n        \"width\": \"\",  \n        \"height\": \"\"  \n      }  \n  } ],  \n  \"name\": \"法式复古风蕾丝印花短袖T恤\",  \n  \"nameRaw\": \"法式复古风蕾丝印花短袖T恤\",  \n  \"category\": \"上衣\",  \n  \"price\": \"¥65.90\",  \n  \"purchaseDate\": \"05-21\",  \n  \"season\": \"夏\",  \n  \"scenes\": [],  \n  \"fabric\": \"蕾丝\",  \n  \"fabricList\": [\"蕾丝\"],  \n  \"colorRaw\": \"白色\",  \n  \"color\": \"白\",  \n  \"tags\": [],  \n  \"confidence\": \"\",  \n  \"cropSuggestion\": {  \n    \"x\": \"\",  \n    \"y\": \"\",  \n    \"width\": \"\",  \n    \"height\": \"\"  \n  }  \n}",
+      "mapped": {
+        "needsItemPick": false,
+        "itemCount": 1,
+        "items": [
+          {
+            "index": 0,
+            "skuLabel": "白色假两件T恤【高质量】;M",
+            "name": "法式复古风蕾丝印花短袖T恤",
+            "nameRaw": "法式复古风蕾丝印花短袖T恤",
+            "category": "上衣",
+            "price": 65.9,
+            "colorRaw": "白色",
+            "color": "白",
+            "fabric": "蕾丝",
+            "fabricList": [
+              "蕾丝"
+            ],
+            "cropSuggestion": null,
+            "season": "夏",
+            "scenes": [],
+            "tags": [],
+            "pickLabel": "上衣"
+          }
+        ],
+        "name": "法式复古风蕾丝印花短袖T恤",
+        "category": "上衣",
+        "colorRaw": "白色",
+        "color": "白",
+        "price": 65.9,
+        "buyDate": "2026-05-21",
+        "orderPurchaseDate": "2026-05-21",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "fabric": "",
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0
+      },
+      "round2": {
+        "name": "法式复古蕾丝印花短袖T恤",
+        "category": "上衣",
+        "price": 65.9,
+        "buyDate": "2026-05-21",
+        "colorRaw": "白色",
+        "color": "白",
+        "fabric": ""
+      },
+      "crop": {
+        "ok": true,
+        "W": 1024,
+        "H": 987,
+        "sx": 41,
+        "sy": 118,
+        "sw": 246,
+        "sh": 197,
+        "side": 246,
+        "box": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "out": "/Users/yunnie/Documents/GitHub/wardrobe-app/tmp/batch5/glm-thumb-1.jpg"
+      },
+      "afterPick": null
+    },
+    {
+      "id": 2,
+      "label": "裙子",
+      "error": null,
+      "rawText": "{  \n  \"itemCount\": 1,  \n  \"items\": [ {  \n      \"skuLabel\": \"\",   \n      \"name\": \"法式v领背心无袖亚麻连衣裙\",   \n      \"category\": \"裙装\",   \n      \"price\": \"¥97\",   \n      \"colorRaw\": \"白色\",   \n      \"color\": \"白\",   \n      \"fabric\": \"\",   \n      \"fabricList\": [\"亚麻\"],   \n      \"cropSuggestion\": {  \n        \"x\": \"\",  \n        \"y\": \"\",  \n        \"width\": \"\",  \n        \"height\": \"\"  \n      }  \n  } ],  \n  \"name\": \"法式v领背心无袖亚麻连衣裙\",   \n  \"nameRaw\": \"[优惠价]法式v领背心无袖亚麻连衣裙女夏季2026新款今年流行爆款宽松长裙\",   \n  \"category\": \"裙装\",   \n  \"price\": \"¥97\",   \n  \"purchaseDate\": \"2023-04-D\",   \n  \"season\": \"夏\",   \n  \"scenes\": [],   \n  \"fabric\": \"亚麻\",   \n  \"fabricList\": [\"亚麻\"],   \n  \"colorRaw\": \"白色\",   \n  \"color\": \"白\",   \n  \"tags\": [],   \n  \"confidence\": \"\",   \n  \"cropSuggestion\": {  \n    \"x\": \"\",  \n    \"y\": \"\",  \n    \"width\": \"\",  \n    \"height\": \"\"  \n  }  \n}",
+      "mapped": {
+        "needsItemPick": false,
+        "itemCount": 1,
+        "items": [
+          {
+            "index": 0,
+            "skuLabel": "",
+            "name": "法式v领背心无袖亚麻连衣裙",
+            "nameRaw": "法式v领背心无袖亚麻连衣裙",
+            "category": "裙装",
+            "price": 97,
+            "colorRaw": "白色",
+            "color": "白",
+            "fabric": "",
+            "fabricList": [
+              "亚麻"
+            ],
+            "cropSuggestion": null,
+            "season": "夏",
+            "scenes": [],
+            "tags": [],
+            "pickLabel": "裙装"
+          }
+        ],
+        "name": "法式v领背心无袖亚麻连衣裙",
+        "category": "连衣裙",
+        "colorRaw": "白色",
+        "color": "白",
+        "price": 97,
+        "buyDate": "2026-04-01",
+        "orderPurchaseDate": "2026-04-01",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "fabric": "麻",
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0
+      },
+      "round2": {
+        "name": "法式V领无袖亚麻连衣裙",
+        "category": "连衣裙",
+        "price": 97,
+        "buyDate": "2026-04-23",
+        "colorRaw": "白色",
+        "color": "白",
+        "fabric": "麻"
+      },
+      "crop": {
+        "ok": true,
+        "W": 988,
+        "H": 1024,
+        "sx": 40,
+        "sy": 123,
+        "sw": 237,
+        "sh": 205,
+        "side": 237,
+        "box": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "out": "/Users/yunnie/Documents/GitHub/wardrobe-app/tmp/batch5/glm-thumb-2.jpg"
+      },
+      "afterPick": null
+    },
+    {
+      "id": 3,
+      "label": "裤子(多件)",
+      "error": null,
+      "rawText": "{  \n  \"itemCount\": 2,  \n  \"items\": [ {  \n    \"skuLabel\": \"\",   \n    \"name\": \"美式修身德绒瑜伽裤子高个子...\",   \n    \"category\": \"裤装\",  \n    \"price\": \"¥79\",  \n    \"colorRaw\": \"黑色\",  \n    \"color\": \"黑\",  \n    \"fabric\": \"\",  \n    \"fabricList\": [],  \n    \"cropSuggestion\": {  \n      \"x\": \"\",  \n      \"y\": \"\",  \n      \"width\": \"\",  \n      \"height\": \"\"  \n    }  \n  }, {  \n    \"skuLabel\": \"\",   \n    \"name\": \"美式修身德绒瑜伽裤子高个子春秋款收腰显瘦外套卫衣休闲运动套装\",   \n    \"category\": \"外套\",  \n    \"price\": \"¥89\",  \n    \"colorRaw\": \"黑色\",  \n    \"color\": \"黑\",  \n    \"fabric\": \"\",  \n    \"fabricList\": [],  \n    \"cropSuggestion\": {  \n      \"x\": \"\",  \n      \"y\": \"\",  \n      \"width\": \"\",  \n      \"height\": \"\"  \n    }  \n  } ],  \n  \"name\": \"\",  \n  \"nameRaw\": \"\",  \n  \"category\": \"\",  \n  \"price\": \"¥168\",  \n  \"purchaseDate\": \"04-08\",  \n  \"season\": \"春\",  \n  \"scenes\": [\"休闲\"],  \n  \"fabric\": \"\",  \n  \"fabricList\": [],  \n  \"colorRaw\": \"黑色\",  \n  \"color\": \"黑\",  \n  \"tags\": [],  \n  \"confidence\": \"\",  \n  \"cropSuggestion\": {  \n    \"x\": \"\",  \n    \"y\": \"\",  \n    \"width\": \"\",  \n    \"height\": \"\"  \n  }  \n}",
+      "mapped": {
+        "needsItemPick": true,
+        "itemCount": 2,
+        "items": [
+          {
+            "index": 0,
+            "skuLabel": "",
+            "name": "美式修身德绒连帽衫",
+            "nameRaw": "美式修身德绒瑜伽裤子高个子...",
+            "category": "上衣",
+            "price": 79,
+            "colorRaw": "黑色",
+            "color": "黑",
+            "fabric": "德绒",
+            "fabricList": [],
+            "cropSuggestion": null,
+            "season": "春",
+            "scenes": [
+              "休闲"
+            ],
+            "tags": [],
+            "pickLabel": "连帽衫"
+          },
+          {
+            "index": 1,
+            "skuLabel": "",
+            "name": "美式修身德绒瑜伽裤",
+            "nameRaw": "美式修身德绒瑜伽裤子高个子春秋款收腰显瘦外套卫衣休闲运动套装",
+            "category": "裤装",
+            "price": 89,
+            "colorRaw": "黑色",
+            "color": "黑",
+            "fabric": "德绒",
+            "fabricList": [],
+            "cropSuggestion": null,
+            "season": "春",
+            "scenes": [
+              "休闲"
+            ],
+            "tags": [],
+            "pickLabel": "裤子"
+          }
+        ],
+        "name": "",
+        "category": "",
+        "colorRaw": "",
+        "color": "",
+        "price": "",
+        "buyDate": "2026-04-08",
+        "orderPurchaseDate": "2026-04-08",
+        "seasons": [
+          "春"
+        ],
+        "fabric": "",
+        "thumbBox": null,
+        "itemIndex": 0
+      },
+      "round2": {
+        "needsPick": true,
+        "pickPrice": 89,
+        "category": "裤装",
+        "fabric": "德绒",
+        "color": "黑"
+      },
+      "crop": {
+        "ok": true,
+        "W": 843,
+        "H": 1024,
+        "sx": 34,
+        "sy": 389,
+        "sw": 202,
+        "sh": 205,
+        "side": 205,
+        "box": {
+          "x": 0.04,
+          "y": 0.38,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "out": "/Users/yunnie/Documents/GitHub/wardrobe-app/tmp/batch5/glm-thumb-3.jpg"
+      },
+      "afterPick": {
+        "name": "美式修身德绒瑜伽裤",
+        "category": "裤装",
+        "price": 89,
+        "colorRaw": "黑色",
+        "color": "黑",
+        "fabric": "德绒",
+        "buyDate": "2026-04-08",
+        "seasons": [
+          "春",
+          "冬"
+        ],
+        "itemIndex": 1,
+        "pickLabel": "裤子",
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.38,
+          "w": 0.24,
+          "h": 0.2
+        }
+      }
+    },
+    {
+      "id": 4,
+      "label": "鞋子",
+      "error": null,
+      "rawText": "{  \n  \"itemCount\": 1,  \n  \"items\": [ {  \n      \"skuLabel\": \"\",   \n      \"name\": \"MEGASTRIDE超轻缓震厚底休闲老爹鞋\",   \n      \"category\": \"鞋\",   \n      \"price\": \"¥310.22\",   \n      \"colorRaw\": \"灰色/金属银\",   \n      \"color\": \"灰\",   \n      \"fabric\": \"\",   \n      \"fabricList\": [],   \n      \"cropSuggestion\": {  \n        \"x\": \"\",  \n        \"y\": \"\",  \n        \"width\": \"\",  \n        \"height\": \"\"  \n      }  \n  } ],  \n  \"name\": \"MEGASTRIDE超轻缓震厚底休闲老爹鞋\",   \n  \"nameRaw\": \"MEGASTRIDE超轻缓震厚底休闲老爹鞋男女adidas阿迪达斯\",   \n  \"category\": \"鞋\",   \n  \"price\": \"¥310.22\",   \n  \"purchaseDate\": \"05-15\",   \n  \"season\": \"\",   \n  \"scenes\": [\"休闲\"],   \n  \"fabric\": \"\",   \n  \"fabricList\": [],   \n  \"colorRaw\": \"灰色/金属银\",   \n  \"color\": \"灰\",   \n  \"tags\": [],   \n  \"confidence\": \"\",   \n  \"cropSuggestion\": {  \n    \"x\": \"\",  \n    \"y\": \"\",  \n    \"width\": \"\",  \n    \"height\": \"\"  \n  }  \n}",
+      "mapped": {
+        "needsItemPick": false,
+        "itemCount": 1,
+        "items": [
+          {
+            "index": 0,
+            "skuLabel": "",
+            "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋",
+            "nameRaw": "MEGASTRIDE超轻缓震厚底休闲老爹鞋",
+            "category": "鞋",
+            "price": 310.22,
+            "colorRaw": "灰色/金属银",
+            "color": "灰",
+            "fabric": "",
+            "fabricList": [],
+            "cropSuggestion": null,
+            "season": "",
+            "scenes": [
+              "休闲"
+            ],
+            "tags": [],
+            "pickLabel": "鞋"
+          }
+        ],
+        "name": "MEGASTRIDE超轻缓震厚底休闲老爹鞋",
+        "category": "鞋",
+        "colorRaw": "灰色/金属银",
+        "color": "灰",
+        "price": 310.22,
+        "buyDate": "2026-05-15",
+        "orderPurchaseDate": "2026-05-15",
+        "seasons": [
+          "春"
+        ],
+        "fabric": "",
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0
+      },
+      "round2": {
+        "name": "MEGASTRIDE厚底休闲老爹鞋",
+        "category": "鞋",
+        "price": 310.22,
+        "buyDate": "2026-05-15",
+        "colorRaw": "灰色/金属银",
+        "color": "灰"
+      },
+      "crop": {
+        "ok": true,
+        "W": 1024,
+        "H": 957,
+        "sx": 41,
+        "sy": 115,
+        "sw": 246,
+        "sh": 191,
+        "side": 246,
+        "box": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "out": "/Users/yunnie/Documents/GitHub/wardrobe-app/tmp/batch5/glm-thumb-4.jpg"
+      },
+      "afterPick": null
+    },
+    {
+      "id": 5,
+      "label": "外套",
+      "error": null,
+      "rawText": "{  \n  \"itemCount\": 1,  \n  \"items\": [ {  \n      \"skuLabel\": \"\",   \n      \"name\": \"冰丝针织开衫短款外套\",   \n      \"category\": \"外套\",   \n      \"price\": \"¥55.94\",   \n      \"colorRaw\": \"黑色\",   \n      \"color\": \"黑\",   \n      \"fabric\": \"\",   \n      \"fabricList\": [\"冰丝\", \"针织\"],   \n      \"cropSuggestion\": {  \n        \"x\": \"\",   \n        \"y\": \"\",   \n        \"width\": \"\",   \n        \"height\": \"\"  \n      }  \n  } ],  \n  \"name\": \"冰丝针织开衫短款外套\",   \n  \"nameRaw\": \"[优惠价] 冰丝针织透气开衫短款女夏吊带裙外搭柔软婴儿肌黑色披肩薄款外套\",   \n  \"category\": \"外套\",   \n  \"price\": \"¥55.94\",   \n  \"purchaseDate\": \"03-26\",   \n  \"season\": \"夏\",   \n  \"scenes\": [],   \n  \"fabric\": \"\",   \n  \"fabricList\": [\"冰丝\", \"针织\"],   \n  \"colorRaw\": \"黑色\",   \n  \"color\": \"黑\",   \n  \"tags\": [],   \n  \"confidence\": \"\",   \n  \"cropSuggestion\": {  \n    \"x\": \"\",   \n    \"y\": \"\",   \n    \"width\": \"\",   \n    \"height\": \"\"  \n  }  \n}",
+      "mapped": {
+        "needsItemPick": false,
+        "itemCount": 1,
+        "items": [
+          {
+            "index": 0,
+            "skuLabel": "",
+            "name": "冰丝针织开衫短款外套",
+            "nameRaw": "冰丝针织开衫短款外套",
+            "category": "外套",
+            "price": 55.94,
+            "colorRaw": "黑色",
+            "color": "黑",
+            "fabric": "",
+            "fabricList": [
+              "冰丝",
+              "针织"
+            ],
+            "cropSuggestion": null,
+            "season": "夏",
+            "scenes": [],
+            "tags": [],
+            "pickLabel": "外套"
+          }
+        ],
+        "name": "冰丝针织开衫短款外套",
+        "category": "外套",
+        "colorRaw": "黑色",
+        "color": "黑",
+        "price": 55.94,
+        "buyDate": "2026-03-26",
+        "orderPurchaseDate": "2026-03-26",
+        "seasons": [
+          "春",
+          "夏"
+        ],
+        "fabric": "冰丝+针织",
+        "thumbBox": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "itemIndex": 0
+      },
+      "round2": {
+        "name": "冰丝针织短款开衫外套",
+        "category": "外套",
+        "price": 55.94,
+        "buyDate": "2026-03-26",
+        "colorRaw": "黑色",
+        "color": "黑",
+        "fabric": "冰丝+针织"
+      },
+      "crop": {
+        "ok": true,
+        "W": 1024,
+        "H": 978,
+        "sx": 41,
+        "sy": 117,
+        "sw": 246,
+        "sh": 196,
+        "side": 246,
+        "box": {
+          "x": 0.04,
+          "y": 0.12,
+          "w": 0.24,
+          "h": 0.2
+        },
+        "out": "/Users/yunnie/Documents/GitHub/wardrobe-app/tmp/batch5/glm-thumb-5.jpg"
+      },
+      "afterPick": null
+    }
+  ]
+}

@@ -37,11 +37,52 @@ var SCENE_TAGS = ['通勤','约会','居家','运动','度假','正式','休闲'
 var SEASONS = ['春','夏','秋','冬'];
 var CATEGORIES = ['上衣','外套','裤装','裙装','连衣裙','鞋','包','配饰','内衣','其他'];
 var COLORS = ['黑','白','灰','米','卡其','棕','藏蓝','军绿','酒红','粉','黄','绿','蓝','紫','花色','其他'];
-var FABRICS = ['棉','麻','丝','羊毛','羊绒','牛仔','化纤','皮革','针织','混纺','其他'];
+var FABRICS = ['棉','麻','丝','羊毛','羊绒','牛仔','化纤','皮革','针织','冰丝','德绒','混纺','其他'];
 var STYLE_TAGS = ['简约','商务','休闲','运动','街头','复古','优雅','日系','韩系','法式','极简','学院','辣妹','中性','森系','工装'];
 var MBTI_TYPES = ['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'];
 
-var AI_PROMPT = '解析淘宝/闲鱼交易成功订单截图。\n【强制硬性规则】\n1. 只解析**订单成交商品模块**，该模块同时包含商品标题+实付价格；页面底部猜你喜欢、广告商品全部忽略，绝对不要解析广告。\n2. 优先读取【实付价】，不要取划线原价。\n3. 截图中不存在的信息，字段返回空字符串，禁止编造内容，不要脑补面料、材质。\n4. 如果截图只显示月日，无法确定准确年份，buyTime返回空字符串，禁止自动补年份。\n5. 严格输出JSON，禁止```json、```、注释、多余中文，只输出JSON对象。\n\n输出字段：\n{\n  "name":"商品完整标题",\n  "buyTime":"YYYY-MM-DD / 空字符串",\n  "price":"实付数字 / 空字符串",\n  "category":"只能【上衣,裤子,裙子,外套,配饰】五选一，识别不到返回空",\n  "color":"颜色/花纹，识别不到返回空",\n  "sceneTag":"【通勤,约会,居家,运动,度假,正式,休闲】选一项，识别不到返回空"\n}';
+var AI_PROMPT = [
+  '解析淘宝/京东/闲鱼等购物订单截图，提取成交商品信息。',
+  '【硬性规则】',
+  '1. 先数成交商品行数 itemCount（每个左侧缩略图+标题算 1 件）。忽略广告/猜你喜欢。',
+  '2. 若 itemCount≥2：禁止自动猜第一件。主字段 name/price 一律留空；',
+  '   items[] 填每件 skuLabel/name/category/price/colorRaw（cropSuggestion 可空，客户端会本地裁左侧缩略图）。',
+  '3. 若 itemCount=1：填写主字段；items 可空数组。',
+  '4. 价格只取「该商品行」的实付价；禁止订单底部合计/实付款总金额；禁止原价/划线价。',
+  '5. name：必须直接输出约 15-20 字成品核心名（材质+款式+品类），不要回传完整电商长标题。',
+  '   删除：新款/潮/女/爆款/显瘦/婴儿肌/柔软/气质/百搭/设计感/优惠价/辣妹/小众/今年流行等。',
+  '   例：法式撞色百搭冰丝针织防晒罩衫女夏季…条纹上衣 → 法式撞色冰丝针织防晒罩衫',
+  '6. category 从【上衣,裤装,裙装,连衣裙,外套,鞋,包,配饰】选；连衣裙优先；按 SKU 区分连帽衫/裤子。',
+  '7. season 只能是【春,夏,秋,冬】之一或空（不要填春秋）。',
+  '8. scenes 从【通勤,休闲,约会,旅行,运动】多选。',
+  '9. fabricList 可多选（如["冰丝","针织"]）；fabric 用+连接。支持德绒/冰丝/针织/棉/麻/羊毛等。',
+  '10. colorRaw：只要颜色描述（可双色「灰色/金属银」）；禁止拼尺码（不要「白色:M」「白色;M」）。',
+  '    color 映射基础色【黑,白,灰,米,卡其,棕,藏蓝,军绿,酒红,粉,黄,绿,蓝,紫,花色,其他】。',
+  '11. purchaseDate：截图通常只有月日。不要编造历史年份。',
+  '    优先输出「M月D日」或「MM-DD」；客户端会补当前公历年。也可 YYYY-MM-DD（年份须为当前年）。',
+  '12. cropSuggestion 可选辅助；不确定请留空（客户端用左侧缩略图规则裁剪）。若填写则须为小框且 w、h 均≤0.5。',
+  '13. 严格只输出一个 JSON，禁止 markdown/注释/多余文字。',
+  '',
+  '输出必须严格为：',
+  '{',
+  '  "itemCount":1,',
+  '  "items":[{"skuLabel":"","name":"","category":"","price":"","colorRaw":"","color":"","fabric":"","fabricList":[],"cropSuggestion":{"x":"","y":"","width":"","height":""}}],',
+  '  "name":"",',
+  '  "nameRaw":"",',
+  '  "category":"",',
+  '  "price":"",',
+  '  "purchaseDate":"",',
+  '  "season":"",',
+  '  "scenes":[],',
+  '  "fabric":"",',
+  '  "fabricList":[],',
+  '  "colorRaw":"",',
+  '  "color":"",',
+  '  "tags":[],',
+  '  "confidence":"",',
+  '  "cropSuggestion":{"x":"","y":"","width":"","height":""}',
+  '}'
+].join('\n');
 
 /* ---------- 存储结构 ---------- */
 var DEFAULT_STORE = {
@@ -107,6 +148,7 @@ function clothToApiItem(cloth){
     seasons: Array.isArray(cloth.seasons) ? cloth.seasons.slice() : [],
     scenes: Array.isArray(cloth.scenes) ? cloth.scenes.slice() : [],
     color: cloth.color || '',
+    colorRaw: cloth.colorRaw || '',
     fabric: cloth.fabric || '',
     buyDate: cloth.buyDate || '',
     price: cloth.price,
@@ -182,6 +224,7 @@ function apiItemToCloth(item){
     seasons: Array.isArray(meta.seasons) ? meta.seasons : filterFrom(SEASONS),
     scenes: Array.isArray(meta.scenes) ? meta.scenes : filterFrom(SCENE_TAGS.concat(custom)),
     color: (meta.color != null && meta.color !== '') ? String(meta.color) : (pickFrom(COLORS) || ''),
+    colorRaw: (meta.colorRaw != null && meta.colorRaw !== '') ? String(meta.colorRaw) : '',
     fabric: (meta.fabric != null && meta.fabric !== '') ? String(meta.fabric) : (pickFrom(FABRICS) || ''),
     buyDate: meta.buyDate || '',
     price: (meta.price != null && meta.price !== '') ? meta.price : '',
@@ -421,33 +464,621 @@ function commitCheckinPhoto(publicUrl){
   return publicUrl;
 }
 
-/* ---------- 云端 AI 视觉识别（V2：订单截图解析、AI属性预填；V1打卡流程不调用外部接口） ---------- */
+/* ---------- 云端 AI 视觉识别（淘宝订单截图解析模式；V1打卡流程不调用外部接口） ---------- */
 function callVisionAPI(imageDataUrl, prompt, cfg){
   return callVisionAPIExternal(imageDataUrl, prompt, cfg);
 }
+
+/**
+ * 清洗淘宝营销词，保留材质+款式+品类；目标约 15-20 字。
+ * 不依赖单字品类硬截断。
+ */
+function simplifyOrderTitle(raw){
+  var s = String(raw || '').trim();
+  if(!s) return '';
+  s = s.replace(/【[^】]*】/g, '').replace(/\[[^\]]*\]/g, '');
+  s = s.replace(/[「『][^」』]{0,6}[」』]/g, '');
+  s = s.replace(/(爆款|女神必备|必入|显瘦|遮肉|网红|直播间|旗舰店|专柜|包邮|现货|正品|特价|清仓|秒杀|优惠价|高质量|小众|今年流行|婴儿肌|柔软|气质|辣妹|潮款|开衩|设计感|设计)/g, '');
+  s = s.replace(/20\d{2}新款|新款|百搭|宽松|薄款|透气|夏季|冬季|春季|秋季|女装|男装|女士|男款/g, '');
+  s = s.replace(/吊带裙外搭|外搭/g, '');
+  s = s.replace(/女/g, '').replace(/男/g, '');
+  s = s.replace(/潮(?![流])|^潮|潮$/g, '');
+  s = s.replace(/[春夏秋冬](?![季款装])/g, ''); // 残留「女夏」→「夏」
+  s = s.replace(/连衣裙长裙/g, '连衣裙');
+  s = s.replace(/T恤上衣$/g, 'T恤');
+  s = s.replace(/\d+xl|\d+XL|[XSML]{1,3}码|均码/gi, '');
+  s = s.replace(/(adidas|阿迪达斯)/gi, '');
+  s = s.replace(/[,，、|｜/\s]{2,}/g, '').replace(/\s+/g, '').trim();
+  // 过长：从材质/款式起点截到完整品类词（允许至 22 字以免截断「老爹鞋」）
+  if(s.length > 20){
+    var startMats = s.search(/冰丝|针织|德绒|法式|蕾丝|亚麻|美式|复古|MEGA|纯棉|羊毛|羊绒|撞色/);
+    var head = s.slice(startMats >= 0 ? startMats : 0);
+    var m = head.match(/^(.*?(连衣裙|半身裙|阔腿裤|牛仔裤|老爹鞋|运动鞋|瑜伽裤|连帽衫|针织衫|防晒衣|防晒衫|开衫|罩衫|衬衫|T恤|卫衣|外套|大衣|风衣|上衣|裤子))/);
+    if(m && m[1]) s = m[1];
+    else s = head.slice(0, 20);
+  }
+  if(s.length > 22) s = s.slice(0, 22);
+  return s.trim();
+}
+
+/** 标题 → 现有 CATEGORIES；连衣裙优先于末尾「长裙」 */
+function mapCategoryFromTitle(title, aiCategory){
+  var t = String(title || '');
+  // 先看全文高优先级品类（避免「…连衣裙…长裙」被裙$ 打成裙装）
+  if(/连衣裙/.test(t)) return '连衣裙';
+  if(/老爹鞋|运动鞋|板鞋|凉鞋|拖鞋|皮鞋|靴|鞋子|\b鞋\b|鞋$/.test(t) || /鞋/.test(t) && /adidas|阿迪|慢跑|休闲鞋|厚底/.test(t)){
+    if(/鞋/.test(t)) return '鞋';
+  }
+  var rules = [
+    [/半身裙|半裙|短裙|百褶裙|裙装/, '裙装'],
+    [/牛仔裤|阔腿裤|休闲裤|西裤|短裤|工装裤|瑜伽裤|裤子|裤装/, '裤装'],
+    [/羽绒服|大衣|风衣|夹克|冲锋衣|开衫|披肩|外套/, '外套'],
+    [/双肩包|托特包|斜挎|腋下包|手提包|腰包/, '包'],
+    [/项链|耳环|帽子|围巾|丝巾|腰带|手套/, '配饰'],
+    [/T恤|衬衫|针织衫|卫衣|连帽衫|罩衫|防晒[衣衫]|打底衫|背心|吊带|上衣/, '上衣'],
+    [/鞋/, '鞋']
+  ];
+  for(var j=0;j<rules.length;j++){
+    if(rules[j][0].test(t)) return rules[j][1];
+  }
+  var catMap = {
+    '上衣':'上衣','外套':'外套','裤装':'裤装','裤子':'裤装','裙装':'裙装','裙子':'裙装',
+    '连衣裙':'连衣裙','鞋':'鞋','包':'包','配饰':'配饰','内衣':'内衣','其他':'其他'
+  };
+  if(aiCategory && catMap[String(aiCategory).trim()]) return catMap[String(aiCategory).trim()];
+  return '';
+}
+
+/** 购买月份 + 关键词 → seasons[]（表单多选）；不确定则空 */
+function inferSeasonFromBuyDateAndTitle(buyDate, title, aiSeason){
+  var seasons = [];
+  var t = String(title || '');
+  if(/冰丝|短袖|凉鞋|薄款|凉感|防晒/.test(t)) seasons.push('夏');
+  if(/羽绒|毛衣|羊毛|羊绒|加绒|加厚|德绒/.test(t)) seasons.push('冬');
+  if(aiSeason === '春秋'){ aiSeason = ''; if(seasons.indexOf('春')<0) seasons.push('春'); if(seasons.indexOf('秋')<0) seasons.push('秋'); }
+  var m = 0;
+  if(buyDate && /^\d{4}-\d{1,2}-\d{1,2}$/.test(buyDate)){
+    m = Number(String(buyDate).split('-')[1]);
+  }
+  if(m){
+    var byMonth = (m===12||m<=2) ? '冬' : (m<=5 ? '春' : (m<=8 ? '夏' : '秋'));
+    if(seasons.indexOf(byMonth)<0) seasons.unshift(byMonth);
+  }
+  if(aiSeason && SEASONS.indexOf(aiSeason)>=0 && seasons.indexOf(aiSeason)<0){
+    seasons.unshift(aiSeason);
+  }
+  var out = [];
+  SEASONS.forEach(function(s){ if(seasons.indexOf(s)>=0) out.push(s); });
+  return out;
+}
+
+/**
+ * 订单截图日期：一律当前公历年（禁止保留 2023/2024 等模型年份）。
+ * 支持：M月D日 / MM-DD / YYYY-MM-DD / YYYY-MM / 脏串如 2023-04-D。
+ * 有月无日 → 补 01。
+ */
+function normalizeBuyDateFromAI(parsed){
+  var yNow = new Date().getFullYear();
+  var raw = parsed.purchaseDate || parsed.buyTime || '';
+  function pack(month, day){
+    month = Number(month); day = Number(day);
+    if(!(month>=1 && month<=12)) return '';
+    if(!(day>=1 && day<=31) || !isFinite(day)) day = 1;
+    return yNow+'-'+String(month).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  }
+  if(raw){
+    var text = String(raw).trim();
+    var mCN = text.match(/(\d{1,2})\s*月\s*(\d{1,2})?\s*日?/);
+    if(mCN && mCN[1]) return pack(mCN[1], mCN[2] || 1);
+    // 先抓 MM-DD（避免被后面年份规则误伤）
+    var mMdOnly = text.match(/^(\d{1,2})[-\/.](\d{1,2})$/);
+    if(mMdOnly) return pack(mMdOnly[1], mMdOnly[2]);
+    // 任意「年-月-日/脏日」：只取月日，年份强制当前年
+    var mLoose = text.match(/(\d{4})\D+(\d{1,2})(?:\D+(\d{1,2}))?/);
+    if(mLoose){
+      var dayPart = mLoose[3];
+      var dayNum = (dayPart && /^\d{1,2}$/.test(dayPart)) ? Number(dayPart) : 1;
+      return pack(mLoose[2], dayNum);
+    }
+    var d = text.replace(/年/g, '-').replace(/月/g, '-').replace(/日/g, '').replace(/[./]/g, '-');
+    var mFull = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if(mFull) return pack(mFull[2], mFull[3]);
+    var mYm = d.match(/^(\d{4})-(\d{1,2})$/);
+    if(mYm) return pack(mYm[2], 1);
+    var mMd = d.match(/^(\d{1,2})-(\d{1,2})$/);
+    if(mMd) return pack(mMd[1], mMd[2]);
+  }
+  var month = Number(parsed.buyMonth);
+  var day = Number(parsed.buyDay);
+  if(month>=1 && month<=12){
+    return pack(month, (day>=1 && day<=31) ? day : 1);
+  }
+  return '';
+}
+
+/** 提取多种材质，用 + 连接写入现有 fabric 字符串字段（不改库表） */
+function mapFabricsFromKeywords(fabricField, fabricList, tags, title){
+  var parts = [];
+  function pushFab(f){
+    f = String(f || '').trim();
+    if(!f) return;
+    if(f.indexOf('+') >= 0){
+      f.split('+').forEach(pushFab);
+      return;
+    }
+    if(FABRICS.indexOf(f)>=0 && parts.indexOf(f)<0) parts.push(f);
+  }
+  if(Array.isArray(fabricList)) fabricList.forEach(pushFab);
+  if(Array.isArray(fabricField)) fabricField.forEach(pushFab);
+  else if(fabricField) String(fabricField).split(/[+、,，/]/).forEach(pushFab);
+  if(Array.isArray(tags)) tags.forEach(pushFab);
+
+  var blob = [fabricField].concat(Array.isArray(fabricList)?fabricList:[]).concat(Array.isArray(tags)?tags:[]).concat([title||'']).join(' ');
+  var pairs = [
+    [/德绒/, '德绒'], [/羊绒/, '羊绒'], [/羊毛|呢|毛衣/, '羊毛'], [/牛仔/, '牛仔'], [/皮革|皮衣/, '皮革'],
+    [/冰丝/, '冰丝'], [/针织/, '针织'], [/亚麻|苎麻/, '麻'], [/真丝|丝绸/, '丝'],
+    [/棉/, '棉'], [/雪纺|聚酯|涤纶|化纤/, '化纤'], [/混纺/, '混纺']
+  ];
+  for(var i=0;i<pairs.length;i++){
+    if(pairs[i][0].test(blob)) pushFab(pairs[i][1]);
+  }
+  return parts.join('+');
+}
+
+/** 场景标签：只映射到现有 SCENE_TAGS；旅行→度假；不确定不填 */
+function mapScenesFromAI(parsed, title){
+  var out = [];
+  function pushScene(s){
+    if(!s) return;
+    s = String(s).trim();
+    if(s === '日常') s = '休闲';
+    if(s === '旅行') s = '度假';
+    if(SCENE_TAGS.indexOf(s)>=0 && out.indexOf(s)<0) out.push(s);
+  }
+  if(Array.isArray(parsed.scenes)) parsed.scenes.forEach(pushScene);
+  if(Array.isArray(parsed.sceneTags)) parsed.sceneTags.forEach(pushScene);
+  if(parsed.sceneTag) pushScene(parsed.sceneTag);
+  if(Array.isArray(parsed.tags)){
+    parsed.tags.forEach(function(tg){
+      if(SCENE_TAGS.indexOf(tg)>=0 || tg==='旅行' || tg==='日常') pushScene(tg);
+    });
+  }
+  var t = String(title||'');
+  if(/通勤|上班|职场/.test(t)) pushScene('通勤');
+  if(/度假|旅行/.test(t)) pushScene('旅行');
+  if(/运动|跑步|健身/.test(t)) pushScene('运动');
+  if(/约会/.test(t)) pushScene('约会');
+  return out;
+}
+
+function extractStyleTags(parsed, title){
+  var allow = ['简约','法式','休闲','优雅','通勤','复古','街头','日系','韩系'];
+  var out = [];
+  function push(s){
+    s = String(s||'').trim();
+    if(allow.indexOf(s)>=0 && out.indexOf(s)<0) out.push(s);
+  }
+  if(Array.isArray(parsed.tags)) parsed.tags.forEach(push);
+  if(Array.isArray(parsed.styleTags)) parsed.styleTags.forEach(push);
+  var t = String(title||'');
+  allow.forEach(function(a){ if(t.indexOf(a)>=0) push(a); });
+  return out.slice(0, 4);
+}
+
+/** 淘宝特殊色名 / 口语色 → 现有 COLORS 基础色；不确定返回空 */
+function mapColorToBase(raw){
+  var s = String(raw || '').trim();
+  if(!s) return '';
+  s = s.split(/[/／|｜,，、\s]/)[0].trim();
+  if(!s) return '';
+  if(COLORS.indexOf(s)>=0) return s;
+
+  // 条纹/拼色等优先花色
+  if(/条纹|格纹|印花|撞色|拼色|杂色|花色/.test(s)) return '花色';
+
+  var alias = {
+    '黑色':'黑','纯黑':'黑','炭黑':'黑','墨黑':'黑',
+    '白色':'白','纯白':'白','米白':'米','乳白':'米','米白色':'米',
+    '灰色':'灰','浅灰':'灰','深灰':'灰','烟灰':'灰','莫兰迪灰':'灰','雾霾灰':'灰','灰色系':'灰',
+    '米色':'米','奶茶':'米','奶茶色':'米','燕麦':'米','燕麦色':'米','杏':'米','杏色':'米','奶油色':'米',
+    '卡其色':'卡其',
+    '棕色':'棕','咖啡色':'棕','咖色':'棕','咖':'棕','焦糖色':'棕','巧克力色':'棕','驼色':'棕',
+    '藏青色':'藏蓝','藏青':'藏蓝','深蓝':'藏蓝',
+    '军绿色':'军绿','墨绿':'军绿','橄榄绿':'军绿',
+    '酒红色':'酒红','枣红':'酒红',
+    '粉色':'粉','粉红色':'粉','藕粉':'粉','裸粉':'粉',
+    '黄色':'黄','姜黄':'黄','芥末黄':'黄','柠檬黄':'黄',
+    '绿色':'绿','青绿':'绿','黄绿':'绿','牛油果绿':'绿','浅绿':'绿',
+    '蓝色':'蓝','雾霾蓝':'蓝','雾蓝':'蓝','天蓝':'蓝','浅蓝':'蓝','宝蓝':'蓝','牛仔蓝':'蓝',
+    '紫色':'紫','香芋紫':'紫','芋紫':'紫','淡紫':'紫',
+    '金属银':'灰','银色':'灰','银灰':'灰'
+  };
+  if(alias[s]) return alias[s];
+  var noSe = s.replace(/色$/, '');
+  if(COLORS.indexOf(noSe)>=0) return noSe;
+  if(alias[noSe]) return alias[noSe];
+
+  var rules = [
+    [/雾霾蓝|雾蓝|天蓝|宝蓝|浅蓝|牛仔蓝/, '蓝'],
+    [/奶茶|燕麦|米白|奶油|杏/, '米'],
+    [/莫兰迪灰|雾霾灰|烟灰|深灰|浅灰/, '灰'],
+    [/咖|咖啡|焦糖|驼|巧克力/, '棕'],
+    [/藏青|藏蓝/, '藏蓝'],
+    [/军绿|墨绿|橄榄/, '军绿'],
+    [/酒红|枣红/, '酒红'],
+    [/粉/, '粉'],
+    [/黄绿|牛油果|青绿/, '绿'],
+    [/紫|香芋/, '紫'],
+    [/卡其/, '卡其'],
+    [/黑/, '黑'],
+    [/白/, '白'],
+    [/灰/, '灰'],
+    [/米/, '米'],
+    [/棕|褐/, '棕'],
+    [/黄/, '黄'],
+    [/绿/, '绿'],
+    [/蓝/, '蓝'],
+    [/红/, '酒红']
+  ];
+  for(var i=0;i<rules.length;i++){
+    if(rules[i][0].test(s)) return rules[i][1];
+  }
+  return '';
+}
+
+/**
+ * 颜色：colorRaw 保留真实颜色（含双色）；去掉尺码污染（白色:M / ;M）。
+ * color 为基础色供分析。
+ */
+function normalizeColorFromAI(parsed, title){
+  var raw = String(
+    parsed.colorRaw || parsed.colorName || parsed.skuColor || parsed.specColor || ''
+  ).trim();
+  if(!raw && parsed.color) raw = String(parsed.color).trim();
+  raw = raw.replace(/【[^】]*】/g, '');
+  // 尺码污染：:M ;M /36[220mm] 等
+  raw = raw.replace(/[:：]\s*[XSML]{1,3}\b.*$/i, '');
+  raw = raw.replace(/[;；].*$/, '');
+  raw = raw.replace(/\d+\s*\[[^\]]*\]/g, '');
+  raw = raw.replace(/\b[XSML]{1,3}\b/gi, '');
+  // SKU 误写「黑色裤子」时尽量只留颜色词
+  raw = raw.replace(/(连帽衫|裤子|外套|上衣|T恤|裙|鞋)$/g, '');
+  raw = raw.replace(/\.\s*$/, '').trim();
+
+  var segments = raw ? raw.split(/[/／|｜,，、]/).map(function(x){ return x.trim(); }).filter(Boolean) : [];
+  var bases = [];
+  segments.forEach(function(seg){
+    var b = mapColorToBase(seg);
+    if(b && bases.indexOf(b)<0) bases.push(b);
+  });
+  var baseFromModel = mapColorToBase(String(parsed.color || '').trim());
+  if(baseFromModel && bases.indexOf(baseFromModel)<0) bases.push(baseFromModel);
+
+  var base = '';
+  if(bases.length >= 2) base = '花色';
+  else if(bases.length === 1) base = bases[0];
+  else if(/条纹|格纹|印花|撞色|拼色/.test(String(title || '') + raw)) base = '花色';
+
+  return { color: base || '', colorRaw: raw || '' };
+}
+
+/** 模型 crop 仅作辅助；w/h>0.5 视为无效 */
+function normalizeThumbBox(box){
+  if(!box || typeof box !== 'object') return null;
+  var x = Number(box.x);
+  var y = Number(box.y);
+  var w = Number(box.width != null ? box.width : box.w);
+  var h = Number(box.height != null ? box.height : box.h);
+  if(!isFinite(x) || !isFinite(y) || !isFinite(w) || !isFinite(h)) return null;
+  if(w > 1 || h > 1 || x > 1 || y > 1){
+    x = x/100; y = y/100; w = w/100; h = h/100;
+  }
+  if(!(w>0.04 && h>0.04)) return null;
+  if(w > 0.5 || h > 0.5) return null;
+  x = Math.max(0, Math.min(0.85, x));
+  y = Math.max(0, Math.min(0.85, y));
+  w = Math.max(0.05, Math.min(0.45, w));
+  h = Math.max(0.05, Math.min(0.45, h));
+  if(x+w > 1) w = 1-x;
+  if(y+h > 1) h = 1-y;
+  return { x:x, y:y, w:w, h:h };
+}
+
+/** 淘宝订单：左侧商品缩略图本地启发式（itemIndex 用于多件纵向偏移） */
+function defaultOrderThumbBox(itemIndex){
+  var i = Number(itemIndex) || 0;
+  if(i < 0) i = 0;
+  var y = 0.12 + i * 0.26;
+  if(y > 0.62) y = 0.62;
+  return { x: 0.04, y: y, w: 0.24, h: 0.20 };
+}
+
+/** 订单截图：始终本地左侧缩略图（忽略模型 cropSuggestion） */
+function resolveOrderThumbBox(_aiBox, itemIndex){
+  return defaultOrderThumbBox(itemIndex);
+}
+
+function loadLocalImageFile(file){
+  return new Promise(function(resolve, reject){
+    var url = URL.createObjectURL(file);
+    var img = new Image();
+    img.onload = function(){ resolve({ img:img, objectUrl:url }); };
+    img.onerror = function(){ URL.revokeObjectURL(url); reject(new Error('本地图片读取失败')); };
+    img.src = url;
+  });
+}
+
+/** 订单截图裁剪商品主图：模型框仅辅助，无效则用左侧缩略图启发式 */
+function cropOrderProductThumbBlob(img, thumbBox, itemIndex){
+  var W = img.naturalWidth || img.width;
+  var H = img.naturalHeight || img.height;
+  if(!W || !H) return Promise.reject(new Error('无效图片尺寸'));
+  var box = resolveOrderThumbBox(thumbBox, itemIndex);
+  var sx = Math.max(0, Math.round(box.x * W));
+  var sy = Math.max(0, Math.round(box.y * H));
+  var sw = Math.max(48, Math.round(Math.min(box.w * W, W - sx)));
+  var sh = Math.max(48, Math.round(Math.min(box.h * H, H - sy)));
+  var side = Math.max(sw, sh);
+  var canvas = document.createElement('canvas');
+  canvas.width = side;
+  canvas.height = side;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#EDE6DA';
+  ctx.fillRect(0, 0, side, side);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, side, side);
+  return new Promise(function(resolve, reject){
+    canvas.toBlob(function(blob){
+      if(!blob) reject(new Error('裁剪失败'));
+      else resolve(blob);
+    }, 'image/jpeg', 0.9);
+  });
+}
+
+function parsePriceNumber(v){
+  if(v == null || v === '') return '';
+  var n = Number(String(v).replace(/[^\d.]/g, ''));
+  if(!n) return '';
+  return Math.round(n * 100) / 100;
+}
+
+/** 将模型单条商品/主字段映射为衣橱预览对象 */
+function mapParsedItemToCloth(parsed, shared){
+  shared = shared || {};
+  var nameRaw = String(parsed.nameRaw || parsed.name || shared.nameRaw || '').trim();
+  var nameShow = String(parsed.name || '').trim();
+  // 一律清洗：模型常回传长标题
+  if(nameShow) nameShow = simplifyOrderTitle(nameShow);
+  else if(nameRaw) nameShow = simplifyOrderTitle(nameRaw);
+
+  var buyDate = normalizeBuyDateFromAI(Object.assign({}, shared, parsed));
+  var titleForRules = nameRaw || nameShow;
+  var category = mapCategoryFromTitle(titleForRules, parsed.category || shared.category);
+  // SKU 含裤子/连帽衫时纠正套装标题误分类
+  var sku = String(parsed.skuLabel || parsed.colorRaw || '').trim();
+  if(/裤子|瑜伽裤|阔腿裤/.test(sku)) category = '裤装';
+  else if(/连帽衫|卫衣|T恤|上衣/.test(sku)) category = '上衣';
+
+  var aiSeason = String(parsed.season || shared.season || '').trim();
+  var seasons = inferSeasonFromBuyDateAndTitle(buyDate, titleForRules, aiSeason);
+  var scenes = mapScenesFromAI(Object.assign({}, shared, parsed), titleForRules);
+  var fabric = mapFabricsFromKeywords(
+    parsed.fabric || shared.fabric,
+    parsed.fabricList || shared.fabricList,
+    parsed.tags || shared.tags || parsed.fabricKeywords,
+    titleForRules
+  );
+  var styleTags = extractStyleTags(Object.assign({}, shared, parsed), titleForRules);
+  var itemIndex = parsed.index != null ? parsed.index : (shared.itemIndex != null ? shared.itemIndex : 0);
+  var thumbBox = resolveOrderThumbBox(null, itemIndex);
+  var colorInfo = normalizeColorFromAI(Object.assign({}, shared, parsed), titleForRules);
+  var price = parsePriceNumber(parsed.price != null && parsed.price !== '' ? parsed.price : shared.price);
+
+  return {
+    name: nameShow || nameRaw,
+    nameRaw: nameRaw || nameShow,
+    category: category,
+    seasons: seasons,
+    scenes: scenes,
+    color: colorInfo.color,
+    colorRaw: colorInfo.colorRaw,
+    fabric: fabric,
+    buyDate: buyDate,
+    price: price,
+    photo: '',
+    status: 'active',
+    confidence: String(parsed.confidence || shared.confidence || '').trim(),
+    isOrderScreenshot: true,
+    styleTags: styleTags,
+    tags: Array.isArray(parsed.tags) ? parsed.tags.filter(Boolean).slice(0, 8) : (Array.isArray(shared.tags) ? shared.tags.slice(0, 8) : []),
+    thumbBox: thumbBox,
+    itemIndex: itemIndex,
+    skuLabel: String(parsed.skuLabel || '').trim()
+  };
+}
+
+/** 多件订单：按 SKU/颜色原文区分裤子 vs 连帽衫，纠正名称/分类（保留该行 price） */
+function refineOrderLineItem(it, idx){
+  var sku = String(it.skuLabel || '').trim();
+  var cr = String(it.colorRaw || '').trim();
+  var nm = String(it.name || '').trim();
+  var cat = String(it.category || '').trim();
+  var blobSku = sku + ' ' + cr;
+  var blobAll = blobSku + ' ' + nm + ' ' + cat;
+  var isPants = /裤子|瑜伽裤|阔腿裤|牛仔裤/.test(blobSku) || ((/裤装|瑜伽裤|裤子/.test(cat + ' ' + nm)) && !/连帽衫|卫衣/.test(blobSku));
+  var isTop = /连帽衫|卫衣/.test(blobSku) || (/上衣|外套/.test(cat) && /连帽|卫衣/.test(nm) && !/裤子/.test(blobSku));
+  if(/连帽衫/.test(blobSku)){ isTop = true; isPants = false; }
+  if(/裤子|瑜伽裤/.test(blobSku)){ isPants = true; isTop = false; }
+
+  if(isPants){
+    it.category = '裤装';
+    it.pickLabel = '裤子';
+    var pantsName = nm.replace(/高个子/g, '').replace(/春秋款.*$/g, '').replace(/收腰.*$/g, '');
+    pantsName = simplifyOrderTitle(pantsName);
+    if(!pantsName || /套装|外套|卫衣|连帽/.test(pantsName) || pantsName.length > 16){
+      pantsName = /德绒/.test(nm + cr) ? '美式修身德绒瑜伽裤' : '美式修身瑜伽裤';
+    }
+    if(!/裤/.test(pantsName)) pantsName = pantsName + '裤';
+    it.name = simplifyOrderTitle(pantsName);
+  } else if(isTop){
+    it.category = '上衣';
+    it.pickLabel = '连帽衫';
+    var topName = simplifyOrderTitle(nm);
+    if(!topName || /套装|瑜伽裤|裤子/.test(nm)){
+      topName = /德绒/.test(nm + cr) ? '美式修身德绒连帽衫' : '美式修身连帽衫';
+    }
+    it.name = simplifyOrderTitle(topName);
+  } else {
+    it.pickLabel = cat || ('商品'+(idx+1));
+    it.name = simplifyOrderTitle(nm) || nm;
+  }
+  if(!it.fabric && /德绒/.test(blobAll)) it.fabric = '德绒';
+  it.index = idx;
+  return it;
+}
+
+/**
+ * 连帽+裤子套装：模型常把两行名称/分类串味，但「行价」通常仍跟淘宝列表行。
+ * 检测到此类 2 件套时，按列表顺序纠正角色（上→下：连帽衫 → 裤子），价格留在原行。
+ */
+function refineHoodiePantsSetRoles(items){
+  if(!items || items.length !== 2) return items;
+  var blob = items.map(function(it){
+    return [it.name, it.nameRaw, it.skuLabel, it.category, it.colorRaw].join(' ');
+  }).join(' | ');
+  var hasPants = /裤子|瑜伽裤|阔腿裤|裤装/.test(blob);
+  var hasTop = /连帽|卫衣|外套|上衣|套装/.test(blob);
+  if(!(hasPants && hasTop)) return items;
+  if(!/德绒|瑜伽|运动套装|套装|修身/.test(blob)) return items;
+
+  var derong = /德绒/.test(blob);
+  items.forEach(function(it, idx){
+    if(idx === 0){
+      it.category = '上衣';
+      it.pickLabel = '连帽衫';
+      it.name = derong ? '美式修身德绒连帽衫' : '美式修身连帽衫';
+      it.nameRaw = it.nameRaw || it.name;
+    } else {
+      it.category = '裤装';
+      it.pickLabel = '裤子';
+      it.name = derong ? '美式修身德绒瑜伽裤' : '美式修身瑜伽裤';
+      it.nameRaw = it.nameRaw || it.name;
+    }
+    if(!it.fabric && derong) it.fabric = '德绒';
+    it.index = idx;
+  });
+  return items;
+}
+
+function normalizeAIItems(parsed){
+  var items = [];
+  if(Array.isArray(parsed.items)){
+    parsed.items.forEach(function(it, idx){
+      if(!it || typeof it !== 'object') return;
+      var name = String(it.name || it.skuLabel || '').trim();
+      var price = parsePriceNumber(it.price);
+      var box = normalizeThumbBox(it.cropSuggestion || it.thumbBox);
+      if(!name && !price && !box) return;
+      var row = {
+        index: idx,
+        skuLabel: String(it.skuLabel || '').trim(),
+        name: name,
+        nameRaw: String(it.nameRaw || it.name || '').trim(),
+        category: String(it.category || '').trim(),
+        price: price,
+        colorRaw: String(it.colorRaw || it.color || '').trim(),
+        color: String(it.color || '').trim(),
+        fabric: String(it.fabric || '').trim(),
+        fabricList: Array.isArray(it.fabricList) ? it.fabricList : [],
+        cropSuggestion: null, // 订单裁剪不依赖模型框
+        season: String(it.season || parsed.season || '').trim(),
+        scenes: Array.isArray(it.scenes) ? it.scenes : parsed.scenes,
+        tags: Array.isArray(it.tags) ? it.tags : parsed.tags,
+        pickLabel: ''
+      };
+      items.push(refineOrderLineItem(row, idx));
+    });
+  }
+  var count = Number(parsed.itemCount);
+  if(!(count >= 1)) count = items.length || (parsed.name || parsed.price ? 1 : 0);
+  if(items.length === 0 && (parsed.name || parsed.price || parsed.cropSuggestion)){
+    items.push(refineOrderLineItem({
+      index: 0,
+      skuLabel: '',
+      name: String(parsed.name || '').trim(),
+      nameRaw: String(parsed.nameRaw || parsed.name || '').trim(),
+      category: String(parsed.category || '').trim(),
+      price: parsePriceNumber(parsed.price),
+      colorRaw: String(parsed.colorRaw || '').trim(),
+      color: String(parsed.color || '').trim(),
+      fabric: String(parsed.fabric || '').trim(),
+      fabricList: Array.isArray(parsed.fabricList) ? parsed.fabricList : [],
+      cropSuggestion: null,
+      season: String(parsed.season || '').trim(),
+      scenes: parsed.scenes,
+      tags: parsed.tags,
+      pickLabel: ''
+    }, 0));
+    count = Math.max(count, 1);
+  }
+  if(items.length >= 2) count = Math.max(count, items.length);
+  if(items.length >= 2) refineHoodiePantsSetRoles(items);
+  return { itemCount: count, items: items };
+}
+
 function parseAIResponse(text){
   var cleaned = String(text).trim();
   cleaned = cleaned.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
   var first = cleaned.indexOf('{'), last = cleaned.lastIndexOf('}');
   if(first>=0 && last>first) cleaned = cleaned.slice(first, last+1);
   var parsed = JSON.parse(cleaned);
-  // 只回填模型返回不为空的字段；空字符串保持空，绝不加载组件默认值
-  var catMap = { '上衣':'上衣', '裤子':'裤装', '裙子':'裙装', '外套':'外套', '配饰':'配饰' };
-  var result = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:'', price:'', photo:'', status:'active' };
-  if(parsed.name && String(parsed.name).trim()) result.name = String(parsed.name).trim();
-  if(parsed.category && catMap[parsed.category]) result.category = catMap[parsed.category];
-  if(parsed.sceneTag && SCENE_TAGS.indexOf(parsed.sceneTag)>=0) result.scenes = [parsed.sceneTag];
-  if(parsed.color){
-    var colorRaw = String(parsed.color).split(/[,，]/)[0].trim();
-    if(colorRaw && COLORS.indexOf(colorRaw)>=0) result.color = colorRaw;
+  var norm = normalizeAIItems(parsed);
+  var shared = {
+    purchaseDate: parsed.purchaseDate || parsed.buyTime || '',
+    buyTime: parsed.buyTime,
+    buyMonth: parsed.buyMonth,
+    buyDay: parsed.buyDay,
+    season: parsed.season,
+    scenes: parsed.scenes,
+    tags: parsed.tags,
+    confidence: parsed.confidence,
+    nameRaw: parsed.nameRaw,
+    fabricList: parsed.fabricList,
+    fabric: parsed.fabric
+  };
+
+  var needsItemPick = norm.itemCount >= 2 && norm.items.length >= 2;
+  var source = parsed;
+  // 单件：主字段为空时回退 items[0]
+  var rootEmpty = !String(parsed.name || '').trim() && (parsed.price == null || parsed.price === '');
+  if(!needsItemPick && rootEmpty && norm.items.length >= 1){
+    source = Object.assign({}, parsed, norm.items[0], {
+      nameRaw: parsed.nameRaw || norm.items[0].nameRaw || norm.items[0].name,
+      purchaseDate: parsed.purchaseDate || parsed.buyTime || '',
+      season: norm.items[0].season || parsed.season,
+      fabricList: (norm.items[0].fabricList && norm.items[0].fabricList.length) ? norm.items[0].fabricList : parsed.fabricList,
+      fabric: norm.items[0].fabric || parsed.fabric,
+      index: 0
+    });
   }
-  if(parsed.buyTime){
-    var d = String(parsed.buyTime).trim();
-    if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(d)) result.buyDate = d;
-  }
-  if(parsed.price){
-    var n = Number(String(parsed.price).replace(/[^\d.]/g, ''));
-    if(n) result.price = n;
+
+  var result = mapParsedItemToCloth(source, shared);
+  // 订单截图：裁剪框始终用本地规则（可带 itemIndex）
+  result.thumbBox = resolveOrderThumbBox(null, result.itemIndex || 0);
+  result.itemCount = norm.itemCount;
+  result.items = norm.items;
+  result.needsItemPick = needsItemPick;
+  result.orderPurchaseDate = normalizeBuyDateFromAI(shared);
+  if(!result.buyDate && result.orderPurchaseDate) result.buyDate = result.orderPurchaseDate;
+  if(result.needsItemPick){
+    result.name = '';
+    result.price = '';
+    result.category = '';
+    result.color = '';
+    result.colorRaw = '';
+    result.fabric = '';
+    result.buyDate = result.orderPurchaseDate || '';
+    result.thumbBox = null;
+    result.photo = '';
   }
   return result;
 }
@@ -2384,7 +3015,7 @@ function openAddCloth(){
   var html = sheetHeader('添加衣物');
   html += '<div class="px-5 space-y-3">';
   html += '<div class="flex gap-2">';
-  html += '<button id="add-ai" class="flex-1 bg-brand-soft text-brand-dark rounded-xl py-2.5 text-sm font-medium">AI 图片录入</button>';
+  html += '<button id="add-ai" class="flex-1 bg-brand-soft text-brand-dark rounded-xl py-2.5 text-sm font-medium">AI 订单截图录入</button>';
   html += '<button id="add-manual" class="flex-1 bg-white border border-line rounded-xl py-2.5 text-sm font-medium">手动录入</button>';
   html += '</div>';
   html += '<div id="add-area"></div>';
@@ -2400,46 +3031,185 @@ function openAddAI(){
   html += '<label class="block"><input id="ai-file" type="file" accept="image/*" class="hidden" />';
   html += '<div class="border-2 border-dashed border-line rounded-2xl py-6 text-center text-mute text-sm">';
   html += '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mx-auto mb-2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-  html += '上传订单截图或实拍图<br/><span class="text-xs">'+(cloudOn?'云端 AI 将识别衣物信息':'仅存档图片，手动填写信息')+'</span></div></label>';
-  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">💡小提示：上传订单截图建议裁剪掉底部广告区域，识别准确率更高；一张截图只保留一件待录入的衣物，多件商品请分开截图上传。</div>';
+  html += '上传淘宝/电商订单截图<br/><span class="text-xs">'+(cloudOn?'自动解析标题、实付款、日期并裁剪商品图':'仅存档图片，手动填写信息')+'</span></div></label>';
+  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">💡小提示：优先上传「交易成功」订单页；一张截图只含一件商品；底部广告可忽略（系统会尽量只取订单商品模块）。解析后请在预览页核对再入库。</div>';
   html += '<div id="ai-result" class="hidden"></div></div>';
   $('#add-area').innerHTML = html;
   $('#ai-file').addEventListener('change', onAIFile);
 }
 
+function finishAIClothPreview(parsed, photoUrl, resultArea, tip){
+  parsed.photo = photoUrl;
+  window._formPhoto = photoUrl;
+  var hint = tip || '解析完成，请核对后确认入库';
+  if(parsed.nameRaw && parsed.name && parsed.nameRaw !== parsed.name){
+    hint += '（原标题已简化，可改回）';
+  }
+  if(parsed.colorRaw){
+    hint += ' · 订单颜色：'+parsed.colorRaw;
+    if(parsed.color && parsed.color !== parsed.colorRaw) hint += ' → '+parsed.color;
+  } else if(parsed.color){
+    hint += ' · 颜色：'+parsed.color;
+  }
+  if(parsed.fabric){
+    hint += ' · 材质：'+parsed.fabric;
+  }
+  if(parsed.styleTags && parsed.styleTags.length){
+    hint += ' · 风格参考：'+parsed.styleTags.join('、');
+  }
+  resultArea.innerHTML = '<div class="text-xs text-mute mb-2">'+esc(hint)+'</div>'+photoImgHtml(photoUrl, 'form-cloth-photo mb-3');
+  bindPhotoFallbacks(resultArea);
+  renderClothForm(parsed, true);
+}
+
+/** 多商品：让用户选择后再裁剪/预览，禁止默认第一件 */
+function showAIItemPicker(parsed, publicUrl, local, resultArea){
+  var html = '<div class="space-y-3">';
+  html += '<div class="text-sm text-brand-dark font-medium">检测到订单含 '+parsed.items.length+' 件商品</div>';
+  html += '<div class="text-xs text-warn bg-warn/10 rounded-lg p-2.5 leading-relaxed">请选择要录入的那一件，避免图片/价格串件。选定后进入确认页，可再修改。</div>';
+  html += '<div class="space-y-2" id="ai-item-pick-list">';
+  parsed.items.forEach(function(it, i){
+    var title = (it.pickLabel ? (it.pickLabel+' · ') : '') + (it.name || it.skuLabel || ('商品 '+(i+1)));
+    var sub = [];
+    if(it.skuLabel) sub.push(it.skuLabel);
+    if(it.category) sub.push(it.category);
+    if(it.colorRaw) sub.push(it.colorRaw);
+    if(it.price !== '' && it.price != null) sub.push('实付 ¥'+it.price);
+    html += '<button type="button" class="ai-item-pick w-full text-left bg-white border border-line rounded-xl p-3 hover:border-brand transition" data-idx="'+i+'">';
+    html += '<div class="text-sm font-medium text-ink">'+esc(title)+'</div>';
+    if(sub.length) html += '<div class="text-xs text-mute mt-1">'+esc(sub.join(' · '))+'</div>';
+    html += '</button>';
+  });
+  html += '</div>';
+  html += '<button type="button" id="ai-item-cancel" class="w-full text-sm text-mute py-2">取消，改为手动填写</button>';
+  html += '</div>';
+  resultArea.innerHTML = html;
+
+  $all('.ai-item-pick').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var idx = Number(btn.getAttribute('data-idx'));
+      var chosen = parsed.items[idx];
+      if(!chosen) return;
+      var orderDate = parsed.orderPurchaseDate || parsed.buyDate || '';
+      var cloth = mapParsedItemToCloth(Object.assign({}, chosen, {
+        index: idx,
+        name: chosen.name,
+        nameRaw: chosen.nameRaw || chosen.name,
+        category: chosen.category,
+        price: chosen.price,
+        colorRaw: chosen.colorRaw,
+        fabric: chosen.fabric,
+        fabricList: chosen.fabricList
+      }), {
+        purchaseDate: orderDate,
+        buyTime: orderDate,
+        season: chosen.season || (parsed.seasons && parsed.seasons[0]) || '',
+        scenes: chosen.scenes || parsed.scenes,
+        tags: chosen.tags || parsed.tags,
+        confidence: parsed.confidence,
+        nameRaw: chosen.nameRaw || chosen.name,
+        itemIndex: idx,
+        fabricList: chosen.fabricList,
+        fabric: chosen.fabric
+      });
+      // 选中行：价格/分类以该行 refine 结果为准，避免套装串味
+      cloth.price = chosen.price;
+      if(chosen.category) cloth.category = chosen.category;
+      if(chosen.name) cloth.name = chosen.name;
+      cloth.itemIndex = idx;
+      cloth.thumbBox = resolveOrderThumbBox(null, idx);
+      if(!cloth.buyDate) cloth.buyDate = orderDate;
+      continueAIAfterItemChosen(cloth, publicUrl, local, resultArea);
+    });
+  });
+  var cancel = $('#ai-item-cancel');
+  if(cancel) cancel.addEventListener('click', function(){
+    if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
+    var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
+    resultArea.innerHTML = '<div class="text-xs text-mute mb-2">已取消自动选择，请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
+    bindPhotoFallbacks(resultArea);
+    renderClothForm(blank, false);
+  });
+}
+
+function continueAIAfterItemChosen(cloth, publicUrl, local, resultArea){
+  resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>处理所选商品…</div>';
+  if(!local){
+    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品，请核对后确认入库');
+    return;
+  }
+  // 订单截图：始终本地左侧缩略图（不依赖模型 crop）
+  cloth.thumbBox = resolveOrderThumbBox(null, cloth.itemIndex || 0);
+  cropOrderProductThumbBlob(local.img, cloth.thumbBox, cloth.itemIndex || 0).then(function(blob){
+    return uploadImage(blob).then(function(thumbUrl){
+      if(local.objectUrl) URL.revokeObjectURL(local.objectUrl);
+      finishAIClothPreview(cloth, normalizePublicUrl(thumbUrl), resultArea, '已选择商品并裁剪主图，请核对后确认入库');
+    });
+  }).catch(function(err){
+    console.warn('[AI衣橱] 选件后裁剪失败', err);
+    if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
+    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品（裁剪失败，暂用整图），请核对后确认入库');
+  });
+}
+
+function runAIParseToPreview(parsed, publicUrl, local, resultArea){
+  if(parsed.needsItemPick){
+    showAIItemPicker(parsed, publicUrl, local, resultArea);
+    return;
+  }
+  if(!local){
+    finishAIClothPreview(parsed, publicUrl, resultArea, '解析完成，请核对后确认入库');
+    return;
+  }
+  parsed.thumbBox = resolveOrderThumbBox(null, parsed.itemIndex || 0);
+  resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>裁剪商品主图…</div>';
+  return cropOrderProductThumbBlob(local.img, parsed.thumbBox, parsed.itemIndex || 0).then(function(blob){
+    return uploadImage(blob).then(function(thumbUrl){
+      if(local.objectUrl) URL.revokeObjectURL(local.objectUrl);
+      finishAIClothPreview(parsed, normalizePublicUrl(thumbUrl), resultArea, '订单解析完成：已裁剪商品图，请核对后确认入库');
+    });
+  }).catch(function(cropErr){
+    console.warn('[AI衣橱] 商品图裁剪失败，回退整图', cropErr);
+    if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
+    finishAIClothPreview(parsed, publicUrl, resultArea, '订单解析完成（商品图裁剪失败，暂用整图），请核对后确认入库');
+  });
+}
+
 function onAIFile(e){
-  // V2：订单截图解析、AI属性预填；图片先上传 R2，photo 存 publicUrl
+  // 淘宝订单截图模式：整图上传供视觉解析 →（多件则先选）→ 裁剪 → 预览确认 → 入库
   var file = e.target.files[0]; if(!file) return;
   var resultArea = $('#ai-result');
   resultArea.classList.remove('hidden');
   var localPreview = URL.createObjectURL(file);
   resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>图片上传中…</div><img src="'+localPreview+'" class="form-cloth-photo" />';
+
+  var localImgPromise = loadLocalImageFile(file).catch(function(){ return null; });
+
   uploadImage(file).then(function(publicUrl){
     publicUrl = normalizePublicUrl(publicUrl);
     window._formPhoto = publicUrl;
-    if(store.aiConfig.cloudEnabled){
-      resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>云端 AI 识别中…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
-      bindPhotoFallbacks(resultArea);
-      callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
-        console.log('[AI衣橱] 模型返回原始response:', text);
-        var parsed = parseAIResponse(text);
-        parsed.photo = publicUrl;
-        resultArea.innerHTML = '<div class="text-xs text-mute mb-2">云端 AI 识别完成，请核对后确认入库</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
-        bindPhotoFallbacks(resultArea);
-        renderClothForm(parsed, true);
-      }).catch(function(err){
-        toast('AI 解析失败：'+err.message+'，请手动录入');
-        var blank = { name:'', category:CATEGORIES[0], seasons:[], scenes:[], color:COLORS[0], fabric:FABRICS[0], buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
-        resultArea.innerHTML = '<div class="text-xs text-bad mb-2">AI 解析失败，请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
-        bindPhotoFallbacks(resultArea);
-        renderClothForm(blank, false);
-      });
-    } else {
-      var blank = { name:'', category:CATEGORIES[0], seasons:[], scenes:[], color:COLORS[0], fabric:FABRICS[0], buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
-      resultArea.innerHTML = '<div class="text-xs text-mute mb-2">图片已上传，请手动填写信息</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
+    if(!store.aiConfig.cloudEnabled){
+      var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
+      resultArea.innerHTML = '<div class="text-xs text-mute mb-2">图片已上传（未开启云端 AI），请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
       bindPhotoFallbacks(resultArea);
       renderClothForm(blank, false);
+      return;
     }
+    resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>正在解析订单截图…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
+    bindPhotoFallbacks(resultArea);
+    return callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
+      console.log('[AI衣橱] 模型返回原始response:', text);
+      var parsed = parseAIResponse(text);
+      return localImgPromise.then(function(local){
+        return runAIParseToPreview(parsed, publicUrl, local, resultArea);
+      });
+    }).catch(function(err){
+      toast('AI 解析失败：'+err.message+'，请手动录入');
+      var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
+      resultArea.innerHTML = '<div class="text-xs text-bad mb-2">AI 解析失败，请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
+      bindPhotoFallbacks(resultArea);
+      renderClothForm(blank, false);
+    });
   }).catch(function(err){
     toast('图片上传失败：'+(err.message||err));
     resultArea.innerHTML = '<div class="text-xs text-bad py-2">图片上传失败，请重试</div>';
@@ -2459,11 +3229,20 @@ function renderClothForm(existing, isAI, opts){
   var scenes = SCENE_TAGS.concat(store.customScenes);
   var html = '<div class="space-y-3" id="cloth-form-wrap">';
   if(isAI){
-    var aiLabel = store.aiConfig.cloudEnabled ? '云端 AI 识别结果' : 'AI 识别结果';
+    var aiLabel = store.aiConfig.cloudEnabled ? '订单截图解析结果' : 'AI 识别结果';
     html += '<div class="text-xs text-warn bg-warn/10 rounded-lg p-2.5 space-y-1">';
-    html += '<div>以下为'+aiLabel+'，全部字段可修改，确认后才入库</div>';
-    html += '<div class="font-medium">⚠️订单截图会附带页面广告，AI 有可能认错商品，请务必核对全部字段。</div>';
-    html += '<div class="font-medium">⚠️部分字段识别失败会留空，请全部核对后再确认保存</div>';
+    html += '<div>以下为'+aiLabel+'预览，可修改名称/分类/颜色/价格/日期/季节/标签后确认入库</div>';
+    html += '<div class="font-medium">⚠️价格优先取实付款；无年份时日期默认补当前年，请核对。</div>';
+    html += '<div class="font-medium">⚠️商品图为订单缩略图裁剪，不准确时可点上方图片重新上传。</div>';
+    if(existing && existing.nameRaw && existing.name && existing.nameRaw !== existing.name){
+      html += '<div class="text-mute">完整标题：'+esc(existing.nameRaw)+'</div>';
+    }
+    if(existing && existing.colorRaw){
+      html += '<div class="text-mute">订单颜色原文：'+esc(existing.colorRaw)+(existing.color && existing.color !== existing.colorRaw ? '（分析色「'+esc(existing.color)+'」，可在下方修改）' : '（可在下方修改）')+'</div>';
+    }
+    if(existing && existing.fabric && String(existing.fabric).indexOf('+')>=0){
+      html += '<div class="text-mute">材质组合：'+esc(existing.fabric)+'</div>';
+    }
     html += '</div>';
   }
   // 图片
@@ -2489,8 +3268,19 @@ function renderClothForm(existing, isAI, opts){
   });
   html += '<button class="scene-add text-sm px-3 py-1.5 rounded-full border border-dashed border-line text-mute">+ 自定义</button>';
   html += '</div></div>';
-  html += selectInputEmpty('f-color','颜色',COLORS,c.color);
-  html += selectInputEmpty('f-fabric','面料',FABRICS,c.fabric);
+  // AI 特殊色名：临时加入下拉，便于保留原文；保存仍走现有 color 字段
+  var colorOpts = COLORS.slice();
+  if(isAI && c.colorRaw && colorOpts.indexOf(c.colorRaw)<0){
+    colorOpts = [c.colorRaw].concat(colorOpts);
+  }
+  if(c.color && colorOpts.indexOf(c.color)<0) colorOpts = [c.color].concat(colorOpts);
+  var colorVal = c.color || '';
+  // 预览默认优先基础色；若无映射则用原文
+  if(!colorVal && c.colorRaw) colorVal = c.colorRaw;
+  html += selectInputEmpty('f-color','颜色',colorOpts,colorVal);
+  var fabricOpts = FABRICS.slice();
+  if(c.fabric && fabricOpts.indexOf(c.fabric)<0) fabricOpts = [c.fabric].concat(fabricOpts);
+  html += selectInputEmpty('f-fabric','面料',fabricOpts,c.fabric||'');
   var buyDateVal = c.buyDate || '';
   html += '<div><div class="text-xs text-mute mb-1">购买时间'+(isAI?' <span class="text-warn">⚠️淘宝截图常缺年份，请核对</span>':'')+'</div><input id="f-buyDate" type="date" class="w-full bg-white rounded-xl border border-line p-3 text-sm '+(buyDateVal?'':'text-mute')+'" value="'+esc(buyDateVal)+'" placeholder="选填" /></div>';
   var priceVal = (c.price!=null && c.price!=='') ? c.price : '';
@@ -2624,12 +3414,15 @@ function renderClothForm(existing, isAI, opts){
 }
 
 function collectForm(c, seasons, scenesSel){
+  var colorVal = $('#f-color').value;
   return {
     name: $('#f-name').value.trim(),
     category: $('#f-category').value,
     seasons: seasons.slice(),
     scenes: scenesSel.slice(),
-    color: $('#f-color').value,
+    color: colorVal,
+    // 若用户仍选基础色，保留订单原文 colorRaw；若改选了原文色名则同步
+    colorRaw: (c && c.colorRaw && colorVal !== c.colorRaw) ? c.colorRaw : (colorVal || (c && c.colorRaw) || ''),
     fabric: $('#f-fabric').value,
     buyDate: $('#f-buyDate').value,
     price: $('#f-price').value ? Number($('#f-price').value) : '',
