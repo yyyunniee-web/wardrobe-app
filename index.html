@@ -99,6 +99,23 @@
     min-width:0;
     padding-block:0.125rem;
   }
+  /* 衣橱首页顶栏：标题不与「添加」争宽被压扁 */
+  .closet-home-title{
+    flex:none;
+    flex-shrink:0;
+    min-width:auto;
+    max-width:none;
+    white-space:nowrap;
+    overflow:visible;
+    text-overflow:clip;
+  }
+  .closet-home-add{
+    flex-shrink:0;
+    white-space:nowrap;
+  }
+  @media (min-width: 48rem){
+    .closet-home-header{ gap:0.75rem; }
+  }
   .page-shell{ box-sizing:border-box; }
   #app .text-\[10px\]{ font-size:0.75rem !important; line-height:1.55 !important; }
   #app .text-\[11px\]{ font-size:0.8125rem !important; line-height:1.55 !important; }

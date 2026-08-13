@@ -2262,9 +2262,9 @@ function viewClosetCategoryList(cat){
 function viewClosetHome(){
   var html = '';
   html += '<div class="page-shell px-5 pt-6" style="padding-top:var(--page-pad-top)">';
-  html += '<div class="flex items-center justify-between gap-3 mb-4">';
-  html += '<div class="page-heading text-lg font-semibold">'+closetPageTitle()+'</div>';
-  html += '<button id="add-cloth" class="bg-brand text-white rounded-full px-4 py-2 text-sm flex items-center gap-1">';
+  html += '<div class="closet-home-header flex items-center justify-between gap-2 mb-4">';
+  html += '<div class="page-heading closet-home-title text-lg font-semibold">'+closetPageTitle()+'</div>';
+  html += '<button id="add-cloth" class="closet-home-add bg-brand text-white rounded-full px-4 py-2 text-sm flex items-center gap-1">';
   html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加</button></div>';
 
   // 搜索 + 筛选（仅作用于首页卡片视图）
