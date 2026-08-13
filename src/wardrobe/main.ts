@@ -3,5 +3,7 @@
  * 页面挂载时通过 dataStore 拉取云端衣物
  */
 import { mountWardrobeApp } from '@/wardrobe/app';
+import { registerPwa } from '@/wardrobe/pwa';
 
+registerPwa();
 mountWardrobeApp();

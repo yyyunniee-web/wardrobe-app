@@ -26,6 +26,7 @@ import {
 } from '@/stores/dataStore';
 import { api } from '@/utils/request';
 import { callVisionAPI as callVisionAPIExternal, fetchRealWeather as fetchRealWeatherExternal } from '@/wardrobe/external';
+import { checkForAppUpdate } from '@/wardrobe/pwa';
 
 /* ============================================================
    个人智能穿搭衣橱 — 单文件 PWA
@@ -3577,6 +3578,14 @@ function viewSettings(){
   html += '<div class="text-xs text-mute leading-relaxed">导入会同步到云端衣橱（先清空远端衣物再写入备份中的衣物）。请先导出备份。</div>';
   html += '</div>';
 
+  // PWA：手动同步云端 + 检查应用更新（主屏幕无浏览器刷新时使用）
+  html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-3">';
+  html += '<div class="text-sm font-semibold">同步与更新</div>';
+  html += '<button id="btn-sync-cloud" type="button" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium">同步云端数据</button>';
+  html += '<button id="btn-check-update" type="button" class="w-full bg-paper border border-line rounded-xl py-2.5 text-sm font-medium">检查应用更新</button>';
+  html += '<div class="text-xs text-mute leading-relaxed">主屏幕打开时可用「同步云端数据」拉取最新衣物与打卡；「检查应用更新」用于获取 Vercel 新版本。</div>';
+  html += '</div>';
+
   html += '<div class="text-center text-xs text-mute py-2">衣物数据保存在云端 API</div>';
   html += '<div class="h-6"></div></div>';
   return html;
@@ -3655,6 +3664,39 @@ function bindSettings(){
   });
   $('#b-export').addEventListener('click', exportFullBackup);
   $('#b-file').addEventListener('change', importBackup);
+
+  var syncBtn = $('#btn-sync-cloud');
+  if(syncBtn) syncBtn.addEventListener('click', reloadCloudData);
+  var updateBtn = $('#btn-check-update');
+  if(updateBtn) updateBtn.addEventListener('click', function(){
+    toast('正在检查更新…');
+    checkForAppUpdate().then(function(status){
+      if(status === 'latest') toast('已是最新版本');
+      else if(status === 'unsupported') toast('当前环境不支持应用更新检查');
+      else if(status === 'error') toast('检查更新失败，请稍后重试');
+      // 'updated' 会弹出确认框并由 SW 刷新页面
+    });
+  });
+}
+
+/** 手动同步：重新拉取云端资源并刷新当前页（不改 dataStore 内部实现） */
+function reloadCloudData(){
+  showLoading('同步云端数据…');
+  initDataStore().then(function(res){
+    if(!res.ok) throw new Error(res.error || '云端数据加载失败');
+    syncClothesFromDataStore();
+    applyCloudProfileToStore(getUserProfile());
+    applyCloudDocumentsToStore();
+    if(store.profile.city) store.weather.city = store.profile.city;
+    hideLoading();
+    if(typeof render === 'function') render();
+    refreshWeather(store.weather.city || store.profile.city || '北京');
+    toast('云端数据已同步');
+  }).catch(function(err){
+    hideLoading();
+    console.error('[衣橱] 手动同步失败', err);
+    toast('同步失败：'+(err.message||err));
+  });
 }
 
 function exportFullBackup(){
