@@ -1,6 +1,7 @@
 /**
  * 第三方接口（天气 / AI 视觉），页面禁止直接写 fetch
  */
+import { API_BASE } from '@/utils/request';
 
 export async function fetchJson<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -8,41 +9,44 @@ export async function fetchJson<T = unknown>(url: string, init?: RequestInit): P
   return res.json() as Promise<T>;
 }
 
+/**
+ * 视觉识别：经 Cloudflare Worker 代理（Key 仅服务端）。
+ * 仍返回模型文本字符串，供 parseAIResponse 使用。
+ * cfg 保留签名兼容；不再向浏览器暴露 / 依赖 apiKey。
+ */
 export async function callVisionAPI(
   imageDataUrl: string,
   prompt: string,
-  cfg: { modelName?: string; apiKey: string; apiUrl: string },
+  _cfg?: { modelName?: string; apiKey?: string; apiUrl?: string },
 ): Promise<string> {
-  const reqPayload = {
-    model: cfg.modelName || 'glm-4v-flash',
-    messages: [
-      {
-        role: 'user',
-        content: [
-          { type: 'text', text: prompt },
-          { type: 'image_url', image_url: { url: imageDataUrl } },
-        ],
-      },
-    ],
-  };
-  const fetchOpts: RequestInit = {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: 'Bearer ' + cfg.apiKey,
-    },
-    body: JSON.stringify(reqPayload),
-  };
-  console.log('[AI衣橱] 发送给大模型的完整请求payload:', fetchOpts);
-  const data = await fetchJson<{
-    choices?: Array<{ message?: { content?: string | Array<{ text?: string }> } }>;
-  }>(cfg.apiUrl, fetchOpts);
+  const imageUrl = String(imageDataUrl || '').trim();
+  const promptText = String(prompt || '').trim();
+  if (!imageUrl) throw new Error('缺少图片地址');
+  if (!promptText) throw new Error('缺少 prompt');
 
-  let text: string | Array<{ text?: string }> | undefined =
-    data?.choices?.[0]?.message?.content;
-  if (Array.isArray(text)) text = text.map((p) => p.text || '').join('');
+  const endpoint = `${API_BASE.replace(/\/$/, '')}/ai/vision`;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageUrl, prompt: promptText }),
+  });
+
+  let data: { ok?: boolean; text?: string; error?: string } | null = null;
+  try {
+    data = (await res.json()) as { ok?: boolean; text?: string; error?: string };
+  } catch {
+    data = null;
+  }
+
+  if (!res.ok) {
+    throw new Error((data && data.error) || `AI 代理失败 HTTP ${res.status}`);
+  }
+  if (!data || data.ok === false) {
+    throw new Error((data && data.error) || 'AI 代理返回失败');
+  }
+  const text = data.text != null ? String(data.text).trim() : '';
   if (!text) throw new Error('返回内容为空');
-  return String(text);
+  return text;
 }
 
 type WeatherDay = { temp: number | null; cond: string; desc: string };

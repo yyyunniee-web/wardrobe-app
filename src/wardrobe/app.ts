@@ -88,7 +88,8 @@ var AI_PROMPT = [
 var DEFAULT_STORE = {
   version: 1,
   // aiConfig 含 apiKey：仅会话内存，禁止同步到 D1
-  aiConfig: { cloudEnabled: false, apiKey: '', apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4v-flash' },
+  // cloudEnabled 默认 true：生产走 Worker AI Proxy，用户无需填写 apiKey
+  aiConfig: { cloudEnabled: true, apiKey: '', apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4v-flash' },
   profile: { avatar:'', name:'', age:'', mbti:'', city:'北京', prefStyles:[], tempPrefs:[], tempPref:'', concerns:'', idealStyles:[], idealText:'', analysisStartDate:'', cloudSyncEnabled:false },
   customScenes: [],
   weather: { city:'北京', today:{temp:null,cond:'加载中…',desc:''}, tomorrow:{temp:null,cond:'加载中…',desc:''}, manual:false, error:false, loading:true },
@@ -3032,12 +3033,11 @@ function openAddCloth(){
 }
 
 function openAddAI(){
-  var cloudOn = store.aiConfig.cloudEnabled;
   var html = '<div class="space-y-3">';
   html += '<label class="block"><input id="ai-file" type="file" accept="image/*" class="hidden" />';
   html += '<div class="border-2 border-dashed border-line rounded-2xl py-6 text-center text-mute text-sm">';
   html += '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mx-auto mb-2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-  html += '上传淘宝/电商订单截图<br/><span class="text-xs">'+(cloudOn?'自动解析标题、实付款、日期并裁剪商品图':'仅存档图片，手动填写信息')+'</span></div></label>';
+  html += '上传淘宝/电商订单截图<br/><span class="text-xs">自动解析标题、实付款、日期并裁剪商品图</span></div></label>';
   html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">💡小提示：优先上传「交易成功」订单页；一张截图只含一件商品；底部广告可忽略（系统会尽量只取订单商品模块）。解析后请在预览页核对再入库。</div>';
   html += '<div id="ai-result" class="hidden"></div></div>';
   $('#add-area').innerHTML = html;
@@ -3194,13 +3194,7 @@ function onAIFile(e){
   uploadImage(file).then(function(publicUrl){
     publicUrl = normalizePublicUrl(publicUrl);
     window._formPhoto = publicUrl;
-    if(!store.aiConfig.cloudEnabled){
-      var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
-      resultArea.innerHTML = '<div class="text-xs text-mute mb-2">图片已上传（未开启云端 AI），请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
-      bindPhotoFallbacks(resultArea);
-      renderClothForm(blank, false);
-      return;
-    }
+    // 生产默认走 Worker AI Proxy，无需用户填写 apiKey
     resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>正在解析订单截图…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
     bindPhotoFallbacks(resultArea);
     return callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
