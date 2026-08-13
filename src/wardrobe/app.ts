@@ -817,6 +817,17 @@ function getLunarAlmanac(dateStr){
     inspire: genOutfitInspire(dateStr)
   };
 }
+/** 今日卡片顶栏日期展示：月日 + 周X（不改 almanac 数据结构） */
+function formatWeatherCardDateShort(dateStr){
+  var parts = String(dateStr || '').split('-');
+  if(parts.length < 3) return '';
+  var y = Number(parts[0]), m = Number(parts[1]), d = Number(parts[2]);
+  if(!y || !m || !d) return '';
+  var weekNames = ['日','一','二','三','四','五','六'];
+  var dt = new Date(y, m - 1, d);
+  if(isNaN(dt.getTime())) return m+'月'+d+'日';
+  return m+'月'+d+'日 周'+weekNames[dt.getDay()];
+}
 function renderWeatherAlmanacEmbed(almanac){
   if(!almanac || (!almanac.yi && !almanac.ji)) return '';
   var html = '<div class="weather-yiji-grid">';
@@ -959,10 +970,9 @@ function viewToday(){
   html += '<div class="today-compact page-shell px-4 pt-4" style="padding-top:var(--today-pad-top)">';
 
   // 板块1：今日综合信息（天气即景）
-  // 结构：identity（头像+昵称）与 almanac（日期农历）分离，窄屏可上下排布，避免昵称被挤成省略
+  // 第一行：头像+完整昵称 | 月日星期；下方左右栏保持城市天气 / 切换与标签
   html += '<div class="weather-card-compact section-gap">';
-  html += '<div class="weather-card-top">';
-  html += '<div class="weather-identity">';
+  html += '<div class="weather-card-head">';
   html += '<div class="weather-profile-name-row">';
   if(p.avatar){
     html += '<div class="avatar-circle" style="width:3.375rem;height:3.375rem;border:2px solid rgba(255,251,245,0.9)"><img src="'+p.avatar+'" alt="" /></div>';
@@ -971,15 +981,9 @@ function viewToday(){
   }
   html += '<div class="weather-profile-name">'+(p.name ? esc(p.name) : '你好，穿搭达人')+'</div>';
   html += '</div>';
+  html += '<div class="weather-card-date">'+esc(formatWeatherCardDateShort(selectedDate))+'</div>';
   html += '</div>';
-  html += '<div class="weather-almanac-meta">';
-  if(almanac){
-    html += '<div class="weather-almanac-meta-inner">';
-    html += '<div class="text-[10px] text-mute/85 leading-snug">'+esc(almanac.solarText)+'</div>';
-    html += '<div class="text-[10px] text-mute/75 mt-0.5">'+esc(almanac.lunarText)+'</div>';
-    html += '</div>';
-  }
-  html += '</div>';
+  html += '<div class="weather-card-top">';
   html += '<div class="weather-card-left">';
   html += '<div class="weather-city-row">';
   html += '<div class="weather-city-label text-[11px] text-mute/90 flex items-center gap-1"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>'+esc(w.city)+'</div>';

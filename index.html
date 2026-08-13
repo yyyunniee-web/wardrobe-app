@@ -272,56 +272,61 @@
     border:1px solid rgba(228,205,178,0.75);
     box-shadow:0 3px 18px rgba(200,149,109,0.1);
   }
-  /* 今日卡片顶区：identity / almanac / left / right 分区，窄屏两行，桌面左右栏 */
+  /* 今日卡片：第一行 头像+昵称 | 月日星期；下方左右为天气与标签 */
+  .weather-card-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:0.5rem;
+    width:100%;
+    margin-bottom:0.625rem;
+  }
+  .weather-profile-name-row{
+    display:flex;
+    align-items:center;
+    gap:0.75rem;
+    flex:1 1 auto;
+    min-width:0;
+  }
+  .weather-profile-name{
+    flex:0 1 auto;
+    flex-shrink:0;
+    font-size:1.125rem;
+    font-weight:600;
+    line-height:1.35;
+    padding-block:0.125rem;
+    word-break:break-word;
+  }
+  .weather-card-date{
+    flex:0 0 auto;
+    white-space:nowrap;
+    text-align:right;
+    font-size:0.75rem;
+    line-height:1.35;
+    color:rgba(138,129,112,0.9);
+  }
   .weather-card-top{
     display:grid;
     grid-template-columns:1fr auto;
-    grid-template-areas:
-      "identity almanac"
-      "left right";
+    grid-template-areas:"left right";
     column-gap:0.75rem;
     row-gap:0.5rem;
     align-items:start;
   }
-  .weather-identity{ grid-area:identity; min-width:0; }
-  .weather-almanac-meta{ grid-area:almanac; }
   .weather-card-left{ grid-area:left; min-width:0; }
   .weather-card-right{
     grid-area:right;
-    display:flex; flex-direction:column; align-items:flex-end;
+    display:flex;
+    flex-direction:column;
+    align-items:flex-end;
   }
-  .weather-profile-name-row{
-    display:flex; align-items:center; gap:0.75rem; width:100%;
-  }
-  .weather-profile-name{
-    flex:1 1 auto;
-    font-size:1.125rem; font-weight:600; line-height:1.35;
-    padding-block:0.125rem;
-    word-break:break-word;
-  }
-  .weather-almanac-meta-inner{ text-align:right; }
   @media (max-width: 767.98px){
-    .weather-card-top{
-      grid-template-columns:1fr auto;
-      grid-template-areas:
-        "identity identity"
-        "almanac almanac"
-        "left right";
-      row-gap:0.45rem;
-    }
-    .weather-profile-name-row{ min-width:0; }
-    .weather-profile-name{
-      flex:1 1 auto;
-      min-width:auto;
-      max-width:none;
-    }
-    .weather-almanac-meta-inner{
-      text-align:left;
-      padding-left:calc(3.375rem + 0.75rem); /* 与昵称左缘对齐 */
-    }
+    .weather-card-head{ gap:0.375rem; }
+    .weather-card-date{ font-size:0.6875rem; }
     .weather-card-right{ max-width:none; }
   }
   @media (min-width: 768px){
+    .weather-card-date{ font-size:0.8125rem; }
     .weather-card-right{ max-width:14rem; }
   }
   .weather-city-row{ display:flex; align-items:center; justify-content:flex-start; gap:0.375rem; width:100%; min-height:1.375rem; }
