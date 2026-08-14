@@ -10,3 +10,10 @@ dist/
 
 # Local scratch / test artifacts
 tmp/
+
+# AI evaluation run artifacts（保留目录与示例 label）
+scripts/ai-evaluation/reports/raw/
+scripts/ai-evaluation/reports/latest-report.md
+scripts/ai-evaluation/reports/latest-run.json
+scripts/ai-evaluation/datasets/image-recognition/images/*
+!scripts/ai-evaluation/datasets/image-recognition/images/.gitkeep
