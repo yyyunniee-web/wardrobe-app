@@ -42,29 +42,29 @@ var STYLE_TAGS = ['简约','商务','休闲','运动','街头','复古','优雅'
 var MBTI_TYPES = ['INTJ','INTP','ENTJ','ENTP','INFJ','INFP','ENFJ','ENFP','ISTJ','ISFJ','ESTJ','ESFJ','ISTP','ISFP','ESTP','ESFP'];
 
 var AI_PROMPT = [
-  '解析淘宝/京东/闲鱼等购物订单截图，提取成交商品信息。',
-  '【硬性规则】',
-  '1. 先数成交商品行数 itemCount（每个左侧缩略图+标题算 1 件）。忽略广告/猜你喜欢。',
-  '2. 若 itemCount≥2：禁止自动猜第一件。主字段 name/price 一律留空；',
-  '   items[] 填每件 skuLabel/name/category/price/colorRaw（cropSuggestion 可空，客户端会本地裁左侧缩略图）。',
-  '3. 若 itemCount=1：填写主字段；items 可空数组。',
-  '4. 价格只取「该商品行」的实付价；禁止订单底部合计/实付款总金额；禁止原价/划线价。',
-  '5. name：必须直接输出约 15-20 字成品核心名（材质+款式+品类），不要回传完整电商长标题。',
-  '   删除：新款/潮/女/爆款/显瘦/婴儿肌/柔软/气质/百搭/设计感/优惠价/辣妹/小众/今年流行等。',
-  '   例：法式撞色百搭冰丝针织防晒罩衫女夏季…条纹上衣 → 法式撞色冰丝针织防晒罩衫',
-  '6. category 从【上衣,裤装,裙装,连衣裙,外套,鞋,包,配饰】选；连衣裙优先；按 SKU 区分连帽衫/裤子。',
-  '7. season 只能是【春,夏,秋,冬】之一或空（不要填春秋）。',
-  '8. scenes 从【通勤,休闲,约会,旅行,运动】多选。',
-  '9. fabricList 可多选（如["冰丝","针织"]）；fabric 用+连接。支持德绒/冰丝/针织/棉/麻/羊毛等。',
-  '10. colorRaw：只要颜色描述（可双色「灰色/金属银」）；禁止拼尺码（不要「白色:M」「白色;M」）。',
-  '    color 映射基础色【黑,白,灰,米,卡其,棕,藏蓝,军绿,酒红,粉,黄,绿,蓝,紫,花色,其他】。',
-  '11. purchaseDate：截图通常只有月日。不要编造历史年份。',
-  '    优先输出「M月D日」或「MM-DD」；客户端会补当前公历年。也可 YYYY-MM-DD（年份须为当前年）。',
-  '12. cropSuggestion 可选辅助；不确定请留空（客户端用左侧缩略图规则裁剪）。若填写则须为小框且 w、h 均≤0.5。',
-  '13. 严格只输出一个 JSON，禁止 markdown/注释/多余文字。',
+  '你是 Clothing Vision Assistant（衣物图片识别辅助录入）。根据用户上传图片，尽量提取可写入衣橱的字段。',
+  '图片可能是：①电商订单/商品详情截图 ②单品照片 ③今日穿搭照片。先判断 imageType：order / product / outfit / unknown。',
+  '【总原则】能识别则填；不确定必须留空；禁止编造价格、购买日期、品牌。不要做「匹配衣橱已有衣物」。',
+  '【通用字段】',
+  '1. category 从【上衣,裤装,裙装,连衣裙,外套,鞋,包,配饰】选；连衣裙优先。',
+  '2. name：约 15-20 字核心名（材质+款式+品类）；删除营销词（新款/显瘦/百搭等）。看不清可留空。',
+  '3. colorRaw：颜色描述；color 映射【黑,白,灰,米,卡其,棕,藏蓝,军绿,酒红,粉,黄,绿,蓝,紫,花色,其他】。',
+  '4. fabricList 可多选；fabric 用+连接。仅在可信时填写。',
+  '5. season 只能是【春,夏,秋,冬】之一或空；scenes 从【通勤,休闲,约会,旅行,运动】多选。',
+  '6. tags：风格等短标签（如简约/通勤），最多 8 个。',
+  '【imageType=order】',
+  '7. 数成交商品行 itemCount；忽略广告。itemCount≥2 时主字段 name/price 留空，items[] 填每件。',
+  '8. 价格只取该商品行实付价；禁止合计/划线价。',
+  '9. purchaseDate：常仅有月日，优先「M月D日」或「MM-DD」，勿编造历史年。',
+  '【imageType=product 或 outfit】',
+  '10. itemCount 通常为 1；price、purchaseDate 通常留空；不要假装成订单。',
+  '11. 穿搭照尽量识别主件的类别/颜色/风格；信息不足就少填。',
+  '12. cropSuggestion 可选；不确定留空。',
+  '13. 严格只输出一个 JSON，禁止 markdown/注释。',
   '',
   '输出必须严格为：',
   '{',
+  '  "imageType":"unknown",',
   '  "itemCount":1,',
   '  "items":[{"skuLabel":"","name":"","category":"","price":"","colorRaw":"","color":"","fabric":"","fabricList":[],"cropSuggestion":{"x":"","y":"","width":"","height":""}}],',
   '  "name":"",',
@@ -443,6 +443,7 @@ function commitCheckinPhoto(publicUrl){
   // 仅更新打卡会话预览，禁止回写已有历史 checkin
   checkinPhoto = publicUrl;
   checkinTempPhoto = publicUrl;
+  if(checkinPhotoUploadStatus !== 'uploading') setCheckinPhotoUploadStatus('uploaded');
   var area = $('#ck-photo-area');
   if(area){
     var img = area.querySelector('img');
@@ -1209,7 +1210,8 @@ function mapParsedItemToCloth(parsed, shared){
     photo: '',
     status: 'active',
     confidence: String(parsed.confidence || shared.confidence || '').trim(),
-    isOrderScreenshot: true,
+    imageType: String(parsed.imageType || shared.imageType || 'unknown').trim() || 'unknown',
+    isOrderScreenshot: !!(shared.isOrderScreenshot),
     styleTags: styleTags,
     tags: Array.isArray(parsed.tags) ? parsed.tags.filter(Boolean).slice(0, 8) : (Array.isArray(shared.tags) ? shared.tags.slice(0, 8) : []),
     thumbBox: thumbBox,
@@ -1354,6 +1356,13 @@ function parseAIResponse(text){
   if(first>=0 && last>first) cleaned = cleaned.slice(first, last+1);
   var parsed = JSON.parse(cleaned);
   var norm = normalizeAIItems(parsed);
+  var imageType = String(parsed.imageType || '').toLowerCase().trim();
+  if(['order','product','outfit','unknown'].indexOf(imageType) < 0) imageType = 'unknown';
+  var isOrder = imageType === 'order'
+    || (imageType !== 'product' && imageType !== 'outfit' && (
+      norm.itemCount >= 2
+      || (!!(String(parsed.purchaseDate || parsed.buyTime || '').trim()) && parsed.price != null && parsed.price !== '')
+    ));
   var shared = {
     purchaseDate: parsed.purchaseDate || parsed.buyTime || '',
     buyTime: parsed.buyTime,
@@ -1365,10 +1374,13 @@ function parseAIResponse(text){
     confidence: parsed.confidence,
     nameRaw: parsed.nameRaw,
     fabricList: parsed.fabricList,
-    fabric: parsed.fabric
+    fabric: parsed.fabric,
+    imageType: imageType,
+    isOrderScreenshot: isOrder
   };
 
-  var needsItemPick = norm.itemCount >= 2 && norm.items.length >= 2;
+  // 仅订单多件强制选件；单品/穿搭照不走订单多件 picker
+  var needsItemPick = isOrder && norm.itemCount >= 2 && norm.items.length >= 2;
   var source = parsed;
   // 单件：主字段为空时回退 items[0]
   var rootEmpty = !String(parsed.name || '').trim() && (parsed.price == null || parsed.price === '');
@@ -1379,13 +1391,16 @@ function parseAIResponse(text){
       season: norm.items[0].season || parsed.season,
       fabricList: (norm.items[0].fabricList && norm.items[0].fabricList.length) ? norm.items[0].fabricList : parsed.fabricList,
       fabric: norm.items[0].fabric || parsed.fabric,
+      imageType: imageType,
       index: 0
     });
   }
 
   var result = mapParsedItemToCloth(source, shared);
-  // 订单截图：裁剪框始终用本地规则（可带 itemIndex）
-  result.thumbBox = resolveOrderThumbBox(null, result.itemIndex || 0);
+  result.imageType = imageType;
+  result.isOrderScreenshot = isOrder;
+  // 订单截图才用左侧缩略图规则；单品/穿搭保留整图
+  result.thumbBox = isOrder ? resolveOrderThumbBox(null, result.itemIndex || 0) : null;
   result.itemCount = norm.itemCount;
   result.items = norm.items;
   result.needsItemPick = needsItemPick;
@@ -1403,6 +1418,123 @@ function parseAIResponse(text){
     result.photo = '';
   }
   return result;
+}
+
+var CLOTH_VISION_SCALAR_KEYS = ['name','nameRaw','category','color','colorRaw','fabric','buyDate','price','skuLabel'];
+var CLOTH_VISION_ARRAY_KEYS = ['seasons','scenes','tags','styleTags'];
+
+function isClothVisionEmpty(v){
+  if(v == null || v === '') return true;
+  if(Array.isArray(v)) return v.length === 0;
+  return false;
+}
+
+function clothVisionValuesEqual(a, b){
+  if(Array.isArray(a) || Array.isArray(b)){
+    return JSON.stringify(Array.isArray(a) ? a : []) === JSON.stringify(Array.isArray(b) ? b : []);
+  }
+  return String(a == null ? '' : a) === String(b == null ? '' : b);
+}
+
+function getClothFieldSources(cloth){
+  return (cloth && cloth._fieldSources && typeof cloth._fieldSources === 'object')
+    ? Object.assign({}, cloth._fieldSources)
+    : {};
+}
+
+/** 将非空字段标记为 AI 来源（首次识别） */
+function markClothFieldsFromAi(cloth){
+  var out = Object.assign({}, cloth || {});
+  var sources = getClothFieldSources(out);
+  CLOTH_VISION_SCALAR_KEYS.concat(CLOTH_VISION_ARRAY_KEYS).forEach(function(k){
+    if(!isClothVisionEmpty(out[k])) sources[k] = 'ai';
+  });
+  out._fieldSources = sources;
+  return out;
+}
+
+/** 编辑模式：已有入库字段标记为 saved（可被最新 AI 更新，但低于 user） */
+function markClothFieldsFromSaved(cloth){
+  var out = Object.assign({}, cloth || {});
+  var sources = getClothFieldSources(out);
+  CLOTH_VISION_SCALAR_KEYS.concat(CLOTH_VISION_ARRAY_KEYS).forEach(function(k){
+    if(isClothVisionEmpty(out[k])) return;
+    if(sources[k] === 'user') return;
+    sources[k] = 'saved';
+  });
+  out._fieldSources = sources;
+  return out;
+}
+
+/**
+ * 对比表单快照与展示中的衣物：值变化的字段标记为 user。
+ * 优先级：user_manual > latest_ai > previous_saved/ai
+ */
+function syncClothVisionDraftFromForm(displayedCloth, formSnapshot){
+  var out = Object.assign({}, formSnapshot || {});
+  var sources = getClothFieldSources(displayedCloth);
+  var prev = displayedCloth || {};
+  CLOTH_VISION_SCALAR_KEYS.concat(CLOTH_VISION_ARRAY_KEYS).forEach(function(k){
+    if(!(k in out)) return;
+    if(clothVisionValuesEqual(prev[k], out[k])) return;
+    // 用户改动（含清空）：记为 user，后续 AI 不得覆盖
+    sources[k] = 'user';
+  });
+  // 保留展示侧 meta
+  if(prev.isOrderScreenshot) out.isOrderScreenshot = prev.isOrderScreenshot;
+  if(prev.imageType) out.imageType = prev.imageType;
+  if(prev.nameRaw && !out.nameRaw) out.nameRaw = prev.nameRaw;
+  if(prev.styleTags && !out.styleTags) out.styleTags = prev.styleTags;
+  if(prev.id) out.id = prev.id;
+  out._fieldSources = sources;
+  return out;
+}
+
+/**
+ * 合并规则（前端 draft 层）：
+ * - source=user：AI 永不覆盖
+ * - source=saved|ai|空：最新 AI 非空结果可覆盖（latest_ai > previous_saved）
+ * - photo：重新上传场景始终用最新图
+ */
+function mergeClothVisionFields(base, incomingAi){
+  var out = Object.assign({}, base || {});
+  var src = incomingAi || {};
+  var sources = getClothFieldSources(out);
+
+  CLOTH_VISION_SCALAR_KEYS.forEach(function(k){
+    var next = src[k];
+    if(isClothVisionEmpty(next)) return;
+    if(sources[k] === 'user') return;
+    out[k] = next;
+    sources[k] = 'ai';
+  });
+
+  CLOTH_VISION_ARRAY_KEYS.forEach(function(k){
+    var next = src[k];
+    if(!Array.isArray(next) || next.length === 0) return;
+    if(sources[k] === 'user') return;
+    out[k] = next.slice();
+    sources[k] = 'ai';
+  });
+
+  // 图片：最新上传/识别结果优先（用户主动换图）
+  if(!isClothVisionEmpty(src.photo)){
+    out.photo = src.photo;
+  }
+
+  if(src.isOrderScreenshot != null) out.isOrderScreenshot = !!src.isOrderScreenshot;
+  if(src.imageType) out.imageType = src.imageType;
+  if(src.confidence != null && src.confidence !== '') out.confidence = src.confidence;
+  if(src.needsItemPick != null) out.needsItemPick = src.needsItemPick;
+  if(src.items) out.items = src.items;
+  if(src.itemCount != null) out.itemCount = src.itemCount;
+  if(src.orderPurchaseDate) out.orderPurchaseDate = src.orderPurchaseDate;
+  if(src.thumbBox !== undefined) out.thumbBox = src.thumbBox;
+  if(src.itemIndex != null) out.itemIndex = src.itemIndex;
+  if(out.id == null && (base && base.id)) out.id = base.id;
+
+  out._fieldSources = sources;
+  return out;
 }
 
 /* ---------- 会话态 store（衣物权威数据在 dataStore / 云端） ---------- */
@@ -2107,6 +2239,27 @@ var checkinReturnSession = null;
 var checkinPendingReturn = false;
 var checkinStep = 1; // 1=上传照片 2=勾选确认
 var checkinWizardMode = 'photo'; // photo=分支A(有图/AI) | manual=分支B(无图)
+/** 打卡照片上传 UI 状态：idle | uploading | uploaded | failed（不改变打卡数据逻辑） */
+var checkinPhotoUploadStatus = 'idle';
+
+function setCheckinPhotoUploadStatus(status){
+  checkinPhotoUploadStatus = status || 'idle';
+  window._checkinPhotoUploading = (checkinPhotoUploadStatus === 'uploading');
+}
+function syncCheckinPhotoUploadStatusFromPhoto(){
+  if(checkinPhotoUploadStatus === 'uploading' || checkinPhotoUploadStatus === 'failed') return;
+  var photo = checkinTempPhoto || checkinPhoto;
+  if(!photo){
+    setCheckinPhotoUploadStatus('idle');
+    return;
+  }
+  if(String(photo).indexOf('blob:') === 0){
+    // 本地预览尚未落到公网 URL，视为仍在上传或待上传
+    if(checkinPhotoUploadStatus !== 'uploading') setCheckinPhotoUploadStatus('uploading');
+    return;
+  }
+  setCheckinPhotoUploadStatus('uploaded');
+}
 
 function resetCheckinTempState(){
   checkinStep = 1;
@@ -2116,6 +2269,7 @@ function resetCheckinTempState(){
   checkinMatches = [];
   checkinManualSelected = {};
   checkinManualFilter = { search:'', category:'', color:'', season:'', scene:'', sort:'wear30' };
+  setCheckinPhotoUploadStatus('idle');
 }
 function saveCheckinSession(){
   return {
@@ -2124,7 +2278,8 @@ function saveCheckinSession(){
     manualSelected: clone(checkinManualSelected),
     manualFilter: clone(checkinManualFilter),
     step: checkinStep,
-    wizardMode: checkinWizardMode
+    wizardMode: checkinWizardMode,
+    photoUploadStatus: checkinPhotoUploadStatus
   };
 }
 function restoreCheckinSession(snap){
@@ -2136,6 +2291,8 @@ function restoreCheckinSession(snap){
   checkinManualFilter = snap.manualFilter || { search:'', category:'', color:'', season:'', scene:'', sort:'wear30' };
   checkinStep = snap.step || 2;
   checkinWizardMode = snap.wizardMode || (checkinPhoto ? 'photo' : 'manual');
+  if(snap.photoUploadStatus) setCheckinPhotoUploadStatus(snap.photoUploadStatus);
+  else syncCheckinPhotoUploadStatusFromPhoto();
 }
 function navigateCheckinToAddCloth(){
   checkinTempPhoto = checkinTempPhoto || checkinPhoto || '';
@@ -2150,15 +2307,21 @@ function navigateCheckinToAddCloth(){
   requestAnimationFrame(function(){ openAddClothFromCheckin(photoForForm); });
 }
 function openAddClothFromCheckin(photo){
+  window._clothVisionDraft = null;
   var html = sheetHeader('添加衣物');
   html += '<div class="px-5 space-y-3">';
   html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">来自打卡跳转 · 保存后将返回当前打卡，并自动勾选刚添加的衣物</div>';
   html += '<div id="add-area"></div>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
-  window._formPhoto = photo || '';
-  var blankFromCheckin = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:'', price:'', photo:photo||'', status:'active' };
-  renderClothForm(blankFromCheckin, false);
+  if(photo){
+    var area = $('#add-area');
+    if(!area) return;
+    area.innerHTML = '<div id="ai-result"></div>';
+    startClothingVisionAssist(photo, { resultArea: $('#ai-result') });
+  } else {
+    renderAddClothUnifiedEntry();
+  }
 }
 function isCheckinDirectManualPick(){
   // 分支B：手动挑选，不进入中间过渡页（step2 仅服务上传照片 AI 路径）
@@ -2295,6 +2458,11 @@ function isCheckinPickedId(id){
 function updateCheckinConfirmBtn(){
   var btn = $('#ck-confirm');
   if(!btn) return;
+  if(checkinPhotoUploadStatus === 'uploading'){
+    btn.disabled = true;
+    btn.textContent = '上传中...';
+    return;
+  }
   var n = getCheckinChosenItems().length;
   btn.disabled = n < 1;
   btn.textContent = n < 1 ? '确认打卡（请至少勾选一件）' : '确认打卡';
@@ -2529,76 +2697,131 @@ function applyAiMatchToSelection(){
 }
 
 function renderCheckinStep1(){
+  syncCheckinPhotoUploadStatusFromPhoto();
+  var status = checkinPhotoUploadStatus;
   var hasPhoto = !!(checkinTempPhoto || checkinPhoto);
   var html = sheetHeader('打卡今日穿搭');
   html += '<div class="px-5 space-y-4">';
   html += '<div id="ck-photo-area">';
-  if(hasPhoto){
+  if(status === 'failed'){
+    html += '<div class="bg-bad/10 text-bad text-sm rounded-xl px-3 py-3 text-center">照片上传失败，请重新选择</div>';
+    html += '<input id="ck-file" type="file" accept="image/*" class="hidden" />';
+  } else if(hasPhoto){
     html += photoImgHtml(checkinTempPhoto || checkinPhoto, 'form-cloth-photo');
-    html += '<label class="block mt-3 text-center"><input id="ck-file" type="file" accept="image/*" class="hidden" />';
-    html += '<span class="text-xs text-brand-dark">重新选择照片</span></label>';
+    if(status === 'uploading'){
+      html += '<div class="text-xs text-mute text-center mt-2">正在上传照片…</div>';
+    }
+    html += '<input id="ck-file" type="file" accept="image/*" class="hidden" />';
   } else {
-    html += '<label class="block"><input id="ck-file" type="file" accept="image/*" class="hidden" />';
+    html += '<button type="button" id="ck-pick-photo-btn" class="block w-full text-left">';
     html += '<div class="ck-upload-zone">';
     html += '<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mx-auto mb-2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
     html += '<div class="font-medium text-ink/80 mb-1">拍摄或从相册选择穿搭照片</div>';
-    html += '<div class="text-xs">支持相机拍摄 / 相册选择</div></div></label>';
+    html += '<div class="text-xs">支持相机拍摄 / 相册选择</div></div></button>';
+    html += '<input id="ck-file" type="file" accept="image/*" class="hidden" />';
   }
   html += '</div>';
-  html += '<button id="ck-upload-next" type="button" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium ck-confirm-btn" '+(hasPhoto?'':'disabled')+'>上传照片</button>';
-  html += '<button id="ck-skip-photo" type="button" class="ck-step-link">暂时不上传照片，直接手动选择衣物</button>';
+
+  var primaryLabel = '上传照片';
+  var primaryDisabled = true;
+  if(status === 'uploading'){
+    primaryLabel = '上传中...';
+    primaryDisabled = true;
+  } else if(status === 'uploaded'){
+    primaryLabel = '更换照片';
+    primaryDisabled = false;
+  } else if(status === 'failed'){
+    primaryLabel = '重新上传';
+    primaryDisabled = false;
+  } else {
+    primaryLabel = '上传照片';
+    primaryDisabled = true;
+  }
+  html += '<button id="ck-upload-next" type="button" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium ck-confirm-btn" '+(primaryDisabled?'disabled':'')+'>'+primaryLabel+'</button>';
+  if(status === 'uploaded'){
+    html += '<button id="ck-photo-continue" type="button" class="ck-step-link">继续确认衣物</button>';
+  }
+  html += '<button id="ck-skip-photo" type="button" class="ck-step-link"'+(status === 'uploading'?' disabled':'')+'>暂时不上传照片，直接手动选择衣物</button>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
+
   var fileInput = $('#ck-file');
+  function openCheckinFilePicker(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
+    if(fileInput) fileInput.click();
+  }
   if(fileInput) fileInput.addEventListener('change', onCheckinStep1Photo);
+
+  var pickBtn = $('#ck-pick-photo-btn');
+  if(pickBtn) pickBtn.addEventListener('click', openCheckinFilePicker);
+
   var nextBtn = $('#ck-upload-next');
   if(nextBtn) nextBtn.addEventListener('click', function(){
-    if(window._checkinPhotoUploading){ toast('图片仍在上传，请稍候'); return; }
-    if(!(checkinTempPhoto || checkinPhoto)){ toast('请先选择照片'); return; }
-    checkinWizardMode = 'photo';
-    checkinManualSelected = {};
-    checkinMatches = [];
-    applyAiMatchToSelection();
-    checkinStep = 2;
-    renderCheckinSheet();
+    if(checkinPhotoUploadStatus === 'uploading') return; // 不可点；不弹 toast
+    if(checkinPhotoUploadStatus === 'failed' || checkinPhotoUploadStatus === 'uploaded'){
+      openCheckinFilePicker();
+      return;
+    }
+  });
+  var continueBtn = $('#ck-photo-continue');
+  if(continueBtn) continueBtn.addEventListener('click', function(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
+    advanceCheckinAfterPhotoReady();
   });
   var skipBtn = $('#ck-skip-photo');
   if(skipBtn) skipBtn.addEventListener('click', function(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
     checkinWizardMode = 'manual';
     checkinPhoto = '';
     checkinTempPhoto = '';
     checkinMatches = [];
     checkinManualSelected = {};
+    setCheckinPhotoUploadStatus('idle');
     checkinStep = 1; // 分支B不进入 step2 过渡页
     openCheckinPickOverlay();
   });
 }
 
+function advanceCheckinAfterPhotoReady(){
+  if(checkinPhotoUploadStatus === 'uploading') return;
+  if(!(checkinTempPhoto || checkinPhoto)) return;
+  checkinWizardMode = 'photo';
+  checkinManualSelected = {};
+  checkinMatches = [];
+  applyAiMatchToSelection();
+  checkinStep = 2;
+  renderCheckinSheet();
+}
+
 function onCheckinStep1Photo(e){
   var file = e.target.files[0]; if(!file) return;
+  e.target.value = '';
+  if(checkinPhotoUploadStatus === 'uploading') return;
   var localUrl = URL.createObjectURL(file);
   checkinPhoto = localUrl;
   checkinTempPhoto = localUrl;
-  window._checkinPhotoUploading = true;
+  setCheckinPhotoUploadStatus('uploading');
   renderCheckinStep1();
-  toast('图片上传中…');
   uploadImage(file).then(function(publicUrl){
     commitCheckinPhoto(publicUrl);
-    window._checkinPhotoUploading = false;
-    toast('图片已上传');
-    renderCheckinStep1();
+    setCheckinPhotoUploadStatus('uploaded');
+    // 上传成功后自动进入确认步，避免再次点击「上传照片」
+    advanceCheckinAfterPhotoReady();
   }).catch(function(err){
-    window._checkinPhotoUploading = false;
+    try{ URL.revokeObjectURL(localUrl); }catch(e2){ /* ignore */ }
     checkinPhoto = '';
     checkinTempPhoto = '';
+    setCheckinPhotoUploadStatus('failed');
     toast('图片上传失败：'+(err.message||err));
     renderCheckinStep1();
   });
 }
 
 function renderCheckinStep2(){
+  syncCheckinPhotoUploadStatusFromPhoto();
   var isPhoto = checkinWizardMode === 'photo';
   var photo = checkinTempPhoto || checkinPhoto;
+  var status = checkinPhotoUploadStatus;
   var html = checkinStep2Header('打卡今日穿搭');
   html += '<div class="px-5 space-y-4">';
 
@@ -2606,8 +2829,17 @@ function renderCheckinStep2(){
   if(isPhoto && photo){
     html += '<div class="space-y-2">';
     html += photoImgHtml(photo, 'form-cloth-photo');
-    html += '<label class="block text-center"><input id="ck-change-photo" type="file" accept="image/*" class="hidden" />';
-    html += '<span class="text-xs text-brand-dark">更换照片</span></label>';
+    if(status === 'uploading'){
+      html += '<div class="text-xs text-mute text-center">上传中...</div>';
+      html += '<input id="ck-change-photo" type="file" accept="image/*" class="hidden" />';
+    } else if(status === 'failed'){
+      html += '<div class="text-xs text-bad text-center">照片上传失败</div>';
+      html += '<button type="button" id="ck-change-photo-btn" class="block w-full text-center text-xs text-brand-dark">重新上传</button>';
+      html += '<input id="ck-change-photo" type="file" accept="image/*" class="hidden" />';
+    } else {
+      html += '<button type="button" id="ck-change-photo-btn" class="block w-full text-center text-xs text-brand-dark">更换照片</button>';
+      html += '<input id="ck-change-photo" type="file" accept="image/*" class="hidden" />';
+    }
     html += '</div>';
   } else {
     html += '<div class="text-sm text-ink/80 bg-brand-soft/50 rounded-xl px-3 py-2.5">手动选择今日穿着衣物</div>';
@@ -2618,10 +2850,12 @@ function renderCheckinStep2(){
 
   // 横向等宽并排：从衣橱挑选 / 去添加
   html += '<div class="grid grid-cols-2 gap-2">';
-  html += '<button id="ck-open-pick" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium text-brand-dark leading-snug">从衣橱挑选更多衣物</button>';
-  html += '<button id="ck-go-add" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium text-brand-dark leading-snug">没有这件衣服，去添加</button>';
+  html += '<button id="ck-open-pick" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium text-brand-dark leading-snug"'+(status === 'uploading'?' disabled':'')+'>从衣橱挑选更多衣物</button>';
+  html += '<button id="ck-go-add" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium text-brand-dark leading-snug"'+(status === 'uploading'?' disabled':'')+'>没有这件衣服，去添加</button>';
   html += '</div>';
-  html += '<button id="ck-confirm" type="button" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium ck-confirm-btn" disabled>确认打卡（请至少勾选一件）</button>';
+  var confirmDisabled = true;
+  var confirmLabel = status === 'uploading' ? '上传中...' : '确认打卡（请至少勾选一件）';
+  html += '<button id="ck-confirm" type="button" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium ck-confirm-btn" disabled>'+confirmLabel+'</button>';
   html += '<div class="text-xs text-mute text-center">确认后将写入每件衣物穿着日志 · 穿搭图已上传云端</div>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
@@ -2629,12 +2863,14 @@ function renderCheckinStep2(){
 
   var backBtn = $('#ck-step-back');
   if(backBtn) backBtn.addEventListener('click', function(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
     closeCheckinPickOverlay();
     checkinMatches = [];
     checkinManualSelected = {};
     if(checkinWizardMode === 'manual'){
       checkinPhoto = '';
       checkinTempPhoto = '';
+      setCheckinPhotoUploadStatus('idle');
     }
     checkinWizardMode = 'photo';
     checkinStep = 1;
@@ -2642,16 +2878,26 @@ function renderCheckinStep2(){
   });
 
   var changePhoto = $('#ck-change-photo');
+  function openStep2FilePicker(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
+    if(changePhoto) changePhoto.click();
+  }
   if(changePhoto) changePhoto.addEventListener('change', onCheckinStep2ChangePhoto);
+  var changePhotoBtn = $('#ck-change-photo-btn');
+  if(changePhotoBtn) changePhotoBtn.addEventListener('click', openStep2FilePicker);
 
   renderCheckinChosenList();
 
   var openPick = $('#ck-open-pick');
-  if(openPick) openPick.addEventListener('click', openCheckinPickOverlay);
+  if(openPick) openPick.addEventListener('click', function(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
+    openCheckinPickOverlay();
+  });
   var confirmBtn = $('#ck-confirm');
   if(confirmBtn) confirmBtn.addEventListener('click', confirmCheckin);
   var goAddBtn = $('#ck-go-add');
   if(goAddBtn) goAddBtn.addEventListener('click', function(){
+    if(checkinPhotoUploadStatus === 'uploading') return;
     closeCheckinPickOverlay();
     navigateCheckinToAddCloth();
   });
@@ -2659,21 +2905,21 @@ function renderCheckinStep2(){
 
 function onCheckinStep2ChangePhoto(e){
   var file = e.target.files[0]; if(!file) return;
+  e.target.value = '';
+  if(checkinPhotoUploadStatus === 'uploading') return;
   var localUrl = URL.createObjectURL(file);
   checkinPhoto = localUrl;
   checkinTempPhoto = localUrl;
   checkinWizardMode = 'photo';
-  window._checkinPhotoUploading = true;
+  setCheckinPhotoUploadStatus('uploading');
   renderCheckinSheet();
-  toast('图片上传中…');
   uploadImage(file).then(function(publicUrl){
     commitCheckinPhoto(publicUrl);
-    window._checkinPhotoUploading = false;
+    setCheckinPhotoUploadStatus('uploaded');
     applyAiMatchToSelection();
-    toast('图片已上传');
     renderCheckinSheet();
   }).catch(function(err){
-    window._checkinPhotoUploading = false;
+    setCheckinPhotoUploadStatus('failed');
     toast('图片上传失败：'+(err.message||err));
     renderCheckinSheet();
   });
@@ -2759,7 +3005,7 @@ function submitCheckin(resolvedItems, photo){
 }
 
 function confirmCheckin(){
-  if(window._checkinPhotoUploading){ toast('图片仍在上传，请稍候'); return; }
+  if(checkinPhotoUploadStatus === 'uploading' || window._checkinPhotoUploading) return;
   var chosen = getCheckinChosenItems();
   if(!chosen.length){ toast('请勾选至少一件衣物'); return; }
   // 复用 resolveClothInWardrobe / clothSimilarity（阈值 ≥35）校验勾选衣物是否在衣橱中
@@ -2771,7 +3017,6 @@ function confirmCheckin(){
   }
   var photoToSave = (checkinWizardMode === 'photo') ? normalizePublicUrl(checkinTempPhoto || checkinPhoto) : '';
   if(photoToSave && photoToSave.indexOf('blob:') === 0){
-    toast('图片仍在上传，请稍候');
     return;
   }
   submitCheckin(validation.resolved, photoToSave);
@@ -3382,42 +3627,159 @@ function bindCloset(){
 
 function wearCountOf(id){ return store.logs.filter(function(l){return l.clothId===id;}).length; }
 
-/* ---------- 衣物添加 ---------- */
+/* ---------- 衣物添加（统一入口：上传优先 AI，失败降级手动） ---------- */
 function openAddCloth(){
+  window._clothVisionDraft = null;
   var html = sheetHeader('添加衣物');
   html += '<div class="px-5 space-y-3">';
-  html += '<div class="flex gap-2">';
-  html += '<button id="add-ai" class="flex-1 bg-brand-soft text-brand-dark rounded-xl py-2.5 text-sm font-medium">AI 订单截图录入</button>';
-  html += '<button id="add-manual" class="flex-1 bg-white border border-line rounded-xl py-2.5 text-sm font-medium">手动录入</button>';
-  html += '</div>';
   html += '<div id="add-area"></div>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
-  $('#add-ai').addEventListener('click', openAddAI);
-  $('#add-manual').addEventListener('click', function(){ renderClothForm(null); });
+  renderAddClothUnifiedEntry();
 }
 
-function openAddAI(){
+/** 统一添衣入口：不预先选择 AI/手动；上传后优先识别，失败保留图片转手动 */
+function renderAddClothUnifiedEntry(){
   var html = '<div class="space-y-3">';
   html += '<label class="block"><input id="ai-file" type="file" accept="image/*" class="hidden" />';
   html += '<div class="border-2 border-dashed border-line rounded-2xl py-6 text-center text-mute text-sm">';
   html += '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" class="mx-auto mb-2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>';
-  html += '上传淘宝/电商订单截图<br/><span class="text-xs">自动解析标题、实付款、日期并裁剪商品图</span></div></label>';
-  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">💡小提示：优先上传「交易成功」订单页；一张截图只含一件商品；底部广告可忽略（系统会尽量只取订单商品模块）。解析后请在预览页核对再入库。</div>';
+  html += '上传图片<br/><span class="text-xs">订单截图 / 单品图 / 穿搭照均可 · AI 辅助填写</span></div></label>';
+  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">上传后优先用 AI 理解图片并预填字段；可随时改。识别失败会保留图片并进入手动填写。</div>';
+  html += '<button type="button" id="add-skip-photo" class="w-full text-sm text-brand-dark py-2">暂不上传图片，直接填写</button>';
   html += '<div id="ai-result" class="hidden"></div></div>';
-  $('#add-area').innerHTML = html;
-  $('#ai-file').addEventListener('change', onAIFile);
+  var area = $('#add-area');
+  if(!area) return;
+  area.innerHTML = html;
+  var fileInput = $('#ai-file');
+  if(fileInput) fileInput.addEventListener('change', onAIFile);
+  var skipBtn = $('#add-skip-photo');
+  if(skipBtn) skipBtn.addEventListener('click', function(){ renderClothForm(null); });
 }
 
-function finishAIClothPreview(parsed, photoUrl, resultArea, tip){
+/** @deprecated 入口已合并到 openAddCloth / renderAddClothUnifiedEntry；保留供兼容调用 */
+function openAddAI(){
+  renderAddClothUnifiedEntry();
+}
+
+/** 确保图片为可访问的公网 URL（blob 会先上传） */
+function ensurePublicClothPhotoUrl(url){
+  url = normalizePublicUrl(url || '');
+  if(!url) return Promise.reject(new Error('无图片'));
+  if(url.indexOf('blob:') === 0){
+    return fetch(url).then(function(r){
+      if(!r.ok) throw new Error('本地图片读取失败');
+      return r.blob();
+    }).then(function(blob){ return uploadImage(blob); }).then(function(u){ return normalizePublicUrl(u); });
+  }
+  return Promise.resolve(url);
+}
+
+function fallbackManualClothForm(photoUrl, resultArea, tip){
+  photoUrl = normalizePublicUrl(photoUrl || '');
+  window._formPhoto = photoUrl;
+  var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:photoUrl, status:'active' };
+  if(resultArea){
+    resultArea.classList.remove('hidden');
+    resultArea.innerHTML = '<div class="text-xs text-mute mb-2">'+esc(tip || '已保留图片，请手动填写后入库')+'</div>'+(photoUrl ? photoImgHtml(photoUrl, 'form-cloth-photo mb-3') : '');
+    bindPhotoFallbacks(resultArea);
+  }
+  renderClothForm(blank, false);
+}
+
+/**
+ * Clothing Vision Assistant 主流程：对已有图片 URL 调用现有 Vision Proxy → 预填可编辑表单。
+ * opts.local / opts.baseDraft / opts.preserveFormOnFail / opts.successTip / opts.formOpts
+ * 合并优先级：user_manual > latest_ai > previous_saved（见 mergeClothVisionFields）
+ * formOpts.clothEditorMode: 'create' | 'edit' — 编辑重识别必须带 fromDetail + clothId
+ */
+function startClothingVisionAssist(photoUrl, opts){
+  opts = opts || {};
+  var formOpts = opts.formOpts || {};
+  var isEditVision = formOpts.clothEditorMode === 'edit' || !!(formOpts.fromDetail || formOpts.clothId);
+  var resultArea = opts.resultArea || $('#ai-result');
+  if(!resultArea){
+    var host = isEditVision
+      ? ($('#cloth-form-host') || $('#add-area'))
+      : ($('#add-area') || $('#cloth-form-host'));
+    if(host){
+      host.innerHTML = '<div id="ai-result"></div>';
+      resultArea = $('#ai-result');
+    }
+  }
+  if(!resultArea) return Promise.reject(new Error('缺少识别结果容器'));
+  resultArea.classList.remove('hidden');
+  clearAiCropSession();
+
+  var preview = normalizePublicUrl(photoUrl || '');
+  resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>正在识别图片…</div>'+(preview ? photoImgHtml(preview, 'form-cloth-photo') : '');
+  if(preview) bindPhotoFallbacks(resultArea);
+
+  return ensurePublicClothPhotoUrl(photoUrl).then(function(publicUrl){
+    window._formPhoto = publicUrl;
+    resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>AI 正在理解图片…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
+    bindPhotoFallbacks(resultArea);
+    var localPromise = opts.local ? Promise.resolve(opts.local) : loadImageFromUrl(publicUrl).catch(function(){ return null; });
+    return callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
+      console.log('[AI衣橱] 模型返回原始response:', text);
+      var aiResult = markClothFieldsFromAi(parseAIResponse(text));
+      aiResult.photo = publicUrl;
+      var base = opts.baseDraft || window._clothVisionDraft || null;
+      var merged = base ? mergeClothVisionFields(base, aiResult) : aiResult;
+      merged.photo = publicUrl;
+      return localPromise.then(function(local){
+        return runAIParseToPreview(merged, publicUrl, local, resultArea, opts.successTip, opts.formOpts);
+      });
+    }).catch(function(err){
+      toast('识别失败：'+(err.message||err)+'，已保留图片与已填字段');
+      if(opts.preserveFormOnFail && opts.baseDraft){
+        var keep = Object.assign({}, opts.baseDraft, { photo: publicUrl });
+        keep._fieldSources = getClothFieldSources(opts.baseDraft);
+        if(opts.formOpts && opts.formOpts.clothId) keep.id = opts.formOpts.clothId;
+        else if(opts.baseDraft.id) keep.id = opts.baseDraft.id;
+        window._formPhoto = publicUrl;
+        window._clothVisionDraft = keep;
+        if(resultArea){
+          resultArea.innerHTML = '<div class="text-xs text-mute mb-2">识别未成功，已保留新图与原有填写，请继续编辑</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
+          bindPhotoFallbacks(resultArea);
+        }
+        renderClothForm(keep, !!(keep.name || keep.category || keep.color || keep._fieldSources), opts.formOpts || {});
+        return;
+      }
+      fallbackManualClothForm(publicUrl, resultArea, '识别未成功，已保留图片，请手动填写后入库');
+    });
+  }).catch(function(err){
+    toast('图片准备失败：'+(err.message||err));
+    if(opts.preserveFormOnFail && opts.baseDraft){
+      var keep2 = Object.assign({}, opts.baseDraft);
+      keep2._fieldSources = getClothFieldSources(opts.baseDraft);
+      if(opts.formOpts && opts.formOpts.clothId) keep2.id = opts.formOpts.clothId;
+      renderClothForm(keep2, true, opts.formOpts || {});
+      return;
+    }
+    fallbackManualClothForm(preview, resultArea, '图片不可用，请重新上传或手动填写');
+  });
+}
+
+function finishAIClothPreview(parsed, photoUrl, resultArea, tip, formOpts){
+  formOpts = formOpts || {};
+  if(formOpts.clothId || formOpts.fromDetail){
+    formOpts.clothEditorMode = formOpts.clothEditorMode || 'edit';
+    formOpts.fromDetail = true;
+  } else {
+    formOpts.clothEditorMode = formOpts.clothEditorMode || 'create';
+  }
   parsed.photo = photoUrl;
   window._formPhoto = photoUrl;
-  var hint = tip || '解析完成，请核对后确认入库';
+  if(!parsed._fieldSources) parsed = markClothFieldsFromAi(parsed);
+  if(formOpts.clothId) parsed.id = formOpts.clothId;
+  window._clothVisionDraft = Object.assign({}, parsed);
+  var hint = tip || '识别完成，请核对后确认入库';
   if(parsed.nameRaw && parsed.name && parsed.nameRaw !== parsed.name){
     hint += '（原标题已简化，可改回）';
   }
   if(parsed.colorRaw){
-    hint += ' · 订单颜色：'+parsed.colorRaw;
+    hint += ' · 颜色：'+parsed.colorRaw;
     if(parsed.color && parsed.color !== parsed.colorRaw) hint += ' → '+parsed.color;
   } else if(parsed.color){
     hint += ' · 颜色：'+parsed.color;
@@ -3428,13 +3790,16 @@ function finishAIClothPreview(parsed, photoUrl, resultArea, tip){
   if(parsed.styleTags && parsed.styleTags.length){
     hint += ' · 风格参考：'+parsed.styleTags.join('、');
   }
-  resultArea.innerHTML = '<div class="text-xs text-mute mb-2">'+esc(hint)+'</div>'+photoImgHtml(photoUrl, 'form-cloth-photo mb-3');
-  bindPhotoFallbacks(resultArea);
-  renderClothForm(parsed, true);
+  if(resultArea){
+    resultArea.innerHTML = '<div class="text-xs text-mute mb-2">'+esc(hint)+'</div>'+photoImgHtml(photoUrl, 'form-cloth-photo mb-3');
+    bindPhotoFallbacks(resultArea);
+  }
+  renderClothForm(parsed, true, formOpts);
 }
 
 /** 多商品：让用户选择后再裁剪/预览，禁止默认第一件 */
-function showAIItemPicker(parsed, publicUrl, local, resultArea){
+function showAIItemPicker(parsed, publicUrl, local, resultArea, formOpts){
+  formOpts = formOpts || {};
   var html = '<div class="space-y-3">';
   html += '<div class="text-sm text-brand-dark font-medium">检测到订单含 '+parsed.items.length+' 件商品</div>';
   html += '<div class="text-xs text-warn bg-warn/10 rounded-lg p-2.5 leading-relaxed">请选择要录入的那一件，避免图片/价格串件。选定后进入确认页，可再修改。</div>';
@@ -3470,7 +3835,8 @@ function showAIItemPicker(parsed, publicUrl, local, resultArea){
         price: chosen.price,
         colorRaw: chosen.colorRaw,
         fabric: chosen.fabric,
-        fabricList: chosen.fabricList
+        fabricList: chosen.fabricList,
+        imageType: 'order'
       }), {
         purchaseDate: orderDate,
         buyTime: orderDate,
@@ -3481,53 +3847,63 @@ function showAIItemPicker(parsed, publicUrl, local, resultArea){
         nameRaw: chosen.nameRaw || chosen.name,
         itemIndex: idx,
         fabricList: chosen.fabricList,
-        fabric: chosen.fabric
+        fabric: chosen.fabric,
+        imageType: 'order',
+        isOrderScreenshot: true
       });
       // 选中行：价格/分类以该行 refine 结果为准，避免套装串味
       cloth.price = chosen.price;
       if(chosen.category) cloth.category = chosen.category;
       if(chosen.name) cloth.name = chosen.name;
       cloth.itemIndex = idx;
+      cloth.isOrderScreenshot = true;
       cloth.thumbBox = resolveOrderThumbBox(null, idx);
       if(!cloth.buyDate) cloth.buyDate = orderDate;
-      continueAIAfterItemChosen(cloth, publicUrl, local, resultArea);
+      continueAIAfterItemChosen(cloth, publicUrl, local, resultArea, formOpts);
     });
   });
   var cancel = $('#ai-item-cancel');
   if(cancel) cancel.addEventListener('click', function(){
     if(local && local.objectUrl) URL.revokeObjectURL(local.objectUrl);
     var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
+    if(formOpts.clothId) blank.id = formOpts.clothId;
     resultArea.innerHTML = '<div class="text-xs text-mute mb-2">已取消自动选择，请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
     bindPhotoFallbacks(resultArea);
-    renderClothForm(blank, false);
+    renderClothForm(blank, false, formOpts);
   });
 }
 
-function continueAIAfterItemChosen(cloth, publicUrl, local, resultArea){
+function continueAIAfterItemChosen(cloth, publicUrl, local, resultArea, formOpts){
+  formOpts = formOpts || {};
   resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>处理所选商品…</div>';
   if(!local){
-    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品，请核对后确认入库');
+    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品，请核对后确认入库', formOpts);
     return;
   }
   cloth.thumbBox = resolveOrderThumbBox(cloth.thumbBox, cloth.itemIndex || 0);
   setAiCropSession(local, publicUrl, cloth.thumbBox, cloth.itemIndex || 0);
   cropOrderProductThumbBlob(local.img, cloth.thumbBox, cloth.itemIndex || 0).then(function(blob){
     return uploadImage(blob).then(function(thumbUrl){
-      finishAIClothPreview(cloth, normalizePublicUrl(thumbUrl), resultArea, '已选择商品并裁剪主图，请核对后确认入库');
+      finishAIClothPreview(cloth, normalizePublicUrl(thumbUrl), resultArea, '已选择商品并裁剪主图，请核对后确认入库', formOpts);
     });
   }).catch(function(err){
     console.warn('[AI衣橱] 选件后裁剪失败', err);
-    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品（裁剪失败，暂用整图），请核对后确认入库');
+    finishAIClothPreview(cloth, publicUrl, resultArea, '已选择商品（裁剪失败，暂用整图），请核对后确认入库', formOpts);
   });
 }
 
-function runAIParseToPreview(parsed, publicUrl, local, resultArea){
+function runAIParseToPreview(parsed, publicUrl, local, resultArea, successTip, formOpts){
+  formOpts = formOpts || {};
   if(parsed.needsItemPick){
-    showAIItemPicker(parsed, publicUrl, local, resultArea);
+    showAIItemPicker(parsed, publicUrl, local, resultArea, formOpts);
     return;
   }
-  if(!local){
-    finishAIClothPreview(parsed, publicUrl, resultArea, '解析完成，请核对后确认入库');
+  // 非订单图：不做左侧缩略图裁剪，整图进入预览
+  if(!parsed.isOrderScreenshot || !local){
+    var tip = successTip || (parsed.isOrderScreenshot
+      ? '识别完成，请核对后确认入库'
+      : '图片识别完成（已尽量补充字段），请核对后确认入库');
+    finishAIClothPreview(parsed, publicUrl, resultArea, tip, formOpts);
     return;
   }
   parsed.thumbBox = resolveOrderThumbBox(parsed.thumbBox, parsed.itemIndex || 0);
@@ -3535,19 +3911,29 @@ function runAIParseToPreview(parsed, publicUrl, local, resultArea){
   resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>裁剪商品主图…</div>';
   return cropOrderProductThumbBlob(local.img, parsed.thumbBox, parsed.itemIndex || 0).then(function(blob){
     return uploadImage(blob).then(function(thumbUrl){
-      finishAIClothPreview(parsed, normalizePublicUrl(thumbUrl), resultArea, '订单解析完成：已裁剪商品图，请核对后确认入库');
+      finishAIClothPreview(parsed, normalizePublicUrl(thumbUrl), resultArea, successTip || '订单识别完成：已裁剪商品图，请核对后确认入库', formOpts);
     });
   }).catch(function(cropErr){
     console.warn('[AI衣橱] 商品图裁剪失败，回退整图', cropErr);
-    finishAIClothPreview(parsed, publicUrl, resultArea, '订单解析完成（商品图裁剪失败，暂用整图），请核对后确认入库');
+    finishAIClothPreview(parsed, publicUrl, resultArea, successTip || '订单识别完成（商品图裁剪失败，暂用整图），请核对后确认入库', formOpts);
   });
 }
 
 function onAIFile(e){
-  // 淘宝订单截图模式：整图上传供视觉解析 →（多件则先选）→ 裁剪 → 预览确认 → 入库
+  // 统一：上传 → Clothing Vision Assist → 预览/降级手动
   var file = e.target.files[0]; if(!file) return;
   clearAiCropSession();
   var resultArea = $('#ai-result');
+  if(!resultArea){
+    var host = $('#add-area');
+    if(host){
+      var wrap = document.createElement('div');
+      wrap.id = 'ai-result';
+      host.appendChild(wrap);
+      resultArea = wrap;
+    }
+  }
+  if(!resultArea) return;
   resultArea.classList.remove('hidden');
   var localPreview = URL.createObjectURL(file);
   resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>图片上传中…</div><img src="'+localPreview+'" class="form-cloth-photo" />';
@@ -3557,21 +3943,8 @@ function onAIFile(e){
   uploadImage(file).then(function(publicUrl){
     publicUrl = normalizePublicUrl(publicUrl);
     window._formPhoto = publicUrl;
-    // 生产默认走 Worker AI Proxy，无需用户填写 apiKey
-    resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>正在解析订单截图…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
-    bindPhotoFallbacks(resultArea);
-    return callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
-      console.log('[AI衣橱] 模型返回原始response:', text);
-      var parsed = parseAIResponse(text);
-      return localImgPromise.then(function(local){
-        return runAIParseToPreview(parsed, publicUrl, local, resultArea);
-      });
-    }).catch(function(err){
-      toast('AI 解析失败：'+err.message+'，请手动录入');
-      var blank = { name:'', category:'', seasons:[], scenes:[], color:'', fabric:'', buyDate:todayStr(), price:'', photo:publicUrl, status:'active' };
-      resultArea.innerHTML = '<div class="text-xs text-bad mb-2">AI 解析失败，请手动填写</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
-      bindPhotoFallbacks(resultArea);
-      renderClothForm(blank, false);
+    return localImgPromise.then(function(local){
+      return startClothingVisionAssist(publicUrl, { resultArea: resultArea, local: local });
     });
   }).catch(function(err){
     toast('图片上传失败：'+(err.message||err));
@@ -3582,26 +3955,39 @@ function onAIFile(e){
 /* 渲染衣物表单（新增/编辑） */
 function renderClothForm(existing, isAI, opts){
   opts = opts || {};
+  // create | edit：编辑 × Vision 二次识别必须保持 edit，避免表单挂到 #add-area
+  var clothEditorMode = opts.clothEditorMode
+    || ((opts.fromDetail || opts.clothId || (existing && existing.id)) ? 'edit' : 'create');
+  opts.clothEditorMode = clothEditorMode;
+  if(clothEditorMode === 'edit'){
+    opts.fromDetail = true;
+    if(opts.clothId && existing && !existing.id) existing.id = opts.clothId;
+  }
   var prefillCat = window._closetPrefillCat || '';
   window._closetPrefillCat = '';
   var defaultCat = (prefillCat && CATEGORIES.indexOf(prefillCat)>=0) ? prefillCat : CATEGORIES[0];
   var c = existing || { name:'', category:defaultCat, seasons:[], scenes:[], color:COLORS[0], fabric:FABRICS[0], buyDate:todayStr(), price:'', photo:'', status:'active' };
+  if(clothEditorMode === 'edit' && opts.clothId && !c.id) c.id = opts.clothId;
   if(existing && !existing.id && prefillCat && CATEGORIES.indexOf(prefillCat)>=0){
     if(!isAI || !c.category) c.category = prefillCat;
   }
   var scenes = SCENE_TAGS.concat(store.customScenes);
   var html = '<div class="space-y-3" id="cloth-form-wrap">';
   if(isAI){
-    var aiLabel = store.aiConfig.cloudEnabled ? '订单截图解析结果' : 'AI 识别结果';
+    var aiLabel = 'AI 识别辅助结果';
     html += '<div class="text-xs text-warn bg-warn/10 rounded-lg p-2.5 space-y-1">';
-    html += '<div>以下为'+aiLabel+'预览，可修改名称/分类/颜色/价格/日期/季节/标签后确认入库</div>';
-    html += '<div class="font-medium">⚠️价格优先取实付款；无年份时日期默认补当前年，请核对。</div>';
-    html += '<div class="font-medium">⚠️商品图为订单缩略图裁剪，不准确时可点图片 → 裁剪图片（基于订单原图）。</div>';
+    html += '<div>以下为'+aiLabel+'预览，可修改后确认入库。字段由图片尽量补充，不准确请手改。</div>';
+    if(existing && existing.isOrderScreenshot){
+      html += '<div class="font-medium">⚠️订单类图片：价格优先取实付款；无年份时日期可能补当前年，请核对。</div>';
+      html += '<div class="font-medium">⚠️商品图若为缩略图裁剪，不准确时可点图片 → 裁剪图片。</div>';
+    } else {
+      html += '<div class="font-medium">穿搭/单品图信息有限，价格与购买日期常需手填。</div>';
+    }
     if(existing && existing.nameRaw && existing.name && existing.nameRaw !== existing.name){
       html += '<div class="text-mute">完整标题：'+esc(existing.nameRaw)+'</div>';
     }
     if(existing && existing.colorRaw){
-      html += '<div class="text-mute">订单颜色原文：'+esc(existing.colorRaw)+(existing.color && existing.color !== existing.colorRaw ? '（分析色「'+esc(existing.color)+'」，可在下方修改）' : '（可在下方修改）')+'</div>';
+      html += '<div class="text-mute">颜色原文：'+esc(existing.colorRaw)+(existing.color && existing.color !== existing.colorRaw ? '（分析色「'+esc(existing.color)+'」，可在下方修改）' : '（可在下方修改）')+'</div>';
     }
     if(existing && existing.fabric && String(existing.fabric).indexOf('+')>=0){
       html += '<div class="text-mute">材质组合：'+esc(existing.fabric)+'</div>';
@@ -3615,7 +4001,7 @@ function renderClothForm(existing, isAI, opts){
     html += '<button type="button" id="f-photo-edit" class="form-photo-edit-btn" aria-label="编辑图片">';
     html += photoImgHtml(c.photo, 'form-cloth-photo', 'id="f-photo"');
     html += '</button>';
-    html += '<div class="text-xs text-mute text-center mt-1.5">点击图片：裁剪 / 重新上传</div>';
+    html += '<div class="text-xs text-mute text-center mt-1.5">点击图片：裁剪 / 重新上传（重新上传将自动再次识别并补充字段）</div>';
   } else {
     html += '<button type="button" id="f-photo-upload" class="form-cloth-photo-empty">点击上传图片（可选）</button>';
   }
@@ -3655,21 +4041,27 @@ function renderClothForm(existing, isAI, opts){
   var priceVal = (c.price!=null && c.price!=='') ? c.price : '';
   html += '<div><div class="text-xs text-mute mb-1">购买价格</div><input id="f-price" type="number" class="w-full bg-white rounded-xl border border-line p-3 text-sm '+(priceVal!==''?'':'text-mute')+'" value="'+esc(priceVal)+'" placeholder="选填" /></div>';
   // 状态（仅编辑时显示）
-  if(existing && existing.id){
+  var isEditForm = clothEditorMode === 'edit' || !!(c.id || opts.clothId);
+  if(isEditForm){
     html += '<div><div class="text-xs text-mute mb-1">状态</div><select id="f-status" class="w-full bg-white rounded-xl border border-line p-3 text-sm">';
     html += '<option value="active" '+(c.status==='active'?'selected':'')+'>在用</option>';
     html += '<option value="retired" '+(c.status==='retired'?'selected':'')+'>已淘汰</option>';
     html += '</select></div>';
   }
-  html += '<button id="f-save" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium">'+(existing&&existing.id?'保存修改':'确认入库')+'</button>';
-  if(opts.fromDetail) html += '<button id="f-cancel-detail" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium mt-2">取消</button>';
+  html += '<button id="f-save" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium">'+(isEditForm?'保存修改':'确认入库')+'</button>';
+  if(opts.fromDetail || clothEditorMode === 'edit') html += '<button id="f-cancel-detail" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium mt-2">取消</button>';
   if(checkinPendingReturn) html += '<button id="f-cancel" type="button" class="w-full bg-white border border-line rounded-xl py-3 text-sm font-medium mt-2">取消</button>';
-  if(existing && existing.id) html += '<button id="f-delete" class="w-full text-bad text-sm py-2 mt-1">删除该衣物</button>';
+  if(isEditForm) html += '<button id="f-delete" class="w-full text-bad text-sm py-2 mt-1">删除该衣物</button>';
   html += '</div>';
-  var host = $('#add-area');
-  if(!host && opts.fromDetail){
-    openSheet(sheetHeader('编辑衣物') + '<div class="px-5 pb-2"><div id="cloth-form-host"></div></div>');
+  var host;
+  if(clothEditorMode === 'edit'){
     host = $('#cloth-form-host');
+    if(!host){
+      openSheet(sheetHeader('编辑衣物') + '<div class="px-5 pb-2"><div id="cloth-form-host"></div></div>');
+      host = $('#cloth-form-host');
+    }
+  } else {
+    host = $('#add-area');
   }
   if(!host) return;
   host.innerHTML = html;
@@ -3702,6 +4094,7 @@ function renderClothForm(existing, isAI, opts){
         persistCustomScenes().then(function(){
           hideLoading();
           var next = collectForm(c, seasons, scenesSel);
+          next._fieldSources = getClothFieldSources(c);
           if(existing && existing.id){ next.id = existing.id; next.createdAt = existing.createdAt; next.retiredAt = existing.retiredAt; }
           renderClothForm(next, isAI, opts);
           toast('自定义场景已保存');
@@ -3712,6 +4105,7 @@ function renderClothForm(existing, isAI, opts){
         });
       } else {
         var next = collectForm(c, seasons, scenesSel);
+        next._fieldSources = getClothFieldSources(c);
         if(existing && existing.id){ next.id = existing.id; next.createdAt = existing.createdAt; next.retiredAt = existing.retiredAt; }
         renderClothForm(next, isAI, opts);
       }
@@ -3761,26 +4155,46 @@ function renderClothForm(existing, isAI, opts){
     e.target.value = '';
     clearPhotoEditSession();
     window._formPhotoUploading = true;
-    toast('图片上传中…');
+    // 快照当前表单，并把相对展示值的改动标记为 user
+    var formSnapshot = collectForm(c, seasons, scenesSel);
+    var editIdSnap = opts.clothId || (existing && existing.id) || (c && c.id) || null;
+    if(editIdSnap){
+      formSnapshot.id = editIdSnap;
+      formSnapshot.createdAt = (existing && existing.createdAt) || (c && c.createdAt);
+      formSnapshot.retiredAt = (existing && existing.retiredAt) || (c && c.retiredAt);
+      formSnapshot.status = (existing && existing.status) || (c && c.status) || formSnapshot.status;
+    }
+    formSnapshot = syncClothVisionDraftFromForm(c, formSnapshot);
+    window._clothVisionDraft = formSnapshot;
+    toast('图片上传中，上传后将自动识别…');
     loadLocalImageFile(file).then(function(local){
       if($('#f-photo')) setFormPhotoPreview(local.objectUrl);
       return uploadImage(file).then(function(publicUrl){
         publicUrl = normalizePublicUrl(publicUrl);
-        // 原始图写入会话（general）；AI 订单自动裁剪仍走 setAiCropSession
         setPhotoEditSession(local, publicUrl, null, 0, 'general');
-        var clothId = (existing && existing.id) ? existing.id : null;
+        var clothId = editIdSnap;
         return commitClothPhoto(clothId, publicUrl).then(function(){
           window._formPhotoUploading = false;
           if(existing) existing.photo = publicUrl;
           c.photo = publicUrl;
-          var next = collectForm(c, seasons, scenesSel);
-          if(existing && existing.id){
-            next.id = existing.id;
-            next.createdAt = existing.createdAt;
-            next.retiredAt = existing.retiredAt;
-          }
-          renderClothForm(next, isAI, opts);
-          toast('图片已上传，可点击图片裁剪');
+          formSnapshot.photo = publicUrl;
+          var rematchOpts = Object.assign({}, opts, {
+            clothEditorMode: clothEditorMode,
+            fromDetail: clothEditorMode === 'edit',
+            clothId: editIdSnap || opts.clothId || null
+          });
+          var host = clothEditorMode === 'edit'
+            ? ($('#cloth-form-host') || $('#add-area'))
+            : ($('#add-area') || $('#cloth-form-host'));
+          if(host) host.innerHTML = '<div id="ai-result"></div>';
+          return startClothingVisionAssist(publicUrl, {
+            resultArea: $('#ai-result'),
+            local: local,
+            baseDraft: formSnapshot,
+            preserveFormOnFail: true,
+            formOpts: rematchOpts,
+            successTip: '二次识别完成：新 AI 可更新旧 AI 字段；你手改过的字段不会被覆盖'
+          });
         });
       }).catch(function(err){
         try{ URL.revokeObjectURL(local.objectUrl); }catch(e2){ /* ignore */ }
@@ -3795,11 +4209,12 @@ function renderClothForm(existing, isAI, opts){
     if(window._formPhotoUploading){ toast('图片仍在上传，请稍候'); return; }
     var data = collectForm(c, seasons, scenesSel);
     if(!data.name.trim()){ toast('请填写名称'); return; }
-    var isNew = !(existing && existing.id);
+    var editId = opts.clothId || (existing && existing.id) || (c && c.id) || null;
+    var isNew = !(clothEditorMode === 'edit' || editId);
     if(!isNew){
-      data.id = existing.id;
-      data.createdAt = existing.createdAt || Date.now();
-      data.retiredAt = existing.retiredAt || null;
+      data.id = editId;
+      data.createdAt = (existing && existing.createdAt) || (c && c.createdAt) || Date.now();
+      data.retiredAt = (existing && existing.retiredAt) || (c && c.retiredAt) || null;
     } else {
       data.id = uid(); data.createdAt = Date.now(); data.retiredAt = null;
     }
@@ -3810,9 +4225,9 @@ function renderClothForm(existing, isAI, opts){
       if(checkinPendingReturn){
         toast(isNew ? '已入库 · 返回打卡' : '已保存 · 返回打卡');
         returnToCheckinModal(true, data);
-      } else if(opts.fromDetail && existing && existing.id){
+      } else if(!isNew && (opts.fromDetail || clothEditorMode === 'edit')){
         render();
-        openClothDetail(existing.id);
+        openClothDetail(data.id);
         toast('已保存');
       } else {
         closeSheet(true); render(); toast(isNew ? '已入库' : '已保存');
@@ -3823,13 +4238,15 @@ function renderClothForm(existing, isAI, opts){
     });
   });
   var fcd = $('#f-cancel-detail');
-  if(fcd) fcd.addEventListener('click', function(){ openClothDetail(opts.clothId || existing.id); });
+  if(fcd) fcd.addEventListener('click', function(){ openClothDetail(opts.clothId || (existing && existing.id) || (c && c.id)); });
   var fc = $('#f-cancel');
   if(fc) fc.addEventListener('click', function(){ returnToCheckinModal(false); });
   var fd = $('#f-delete'); if(fd) fd.addEventListener('click', function(){
+    var delId = opts.clothId || (existing && existing.id) || (c && c.id);
+    if(!delId){ toast('无法删除：缺少衣物 id'); return; }
     if(confirm('确定删除该衣物？此操作不可恢复（建议改用淘汰标记）。')){
       showLoading('删除中…');
-      deleteClothRemote(existing.id).then(function(){
+      deleteClothRemote(delId).then(function(){
         hideLoading(); closeSheet(); render(); toast('已删除');
       }).catch(function(err){
         hideLoading(); toast('删除失败：'+(err.message||err));
@@ -3925,7 +4342,9 @@ function openClothDetail(id){
   $('#detail-edit').addEventListener('click', function(){
     window._formPhoto = c.photo;
     window._formPhotoSource = c.photo || '';
-    renderClothForm(c, false, { fromDetail:true, clothId:id });
+    var editDraft = markClothFieldsFromSaved(Object.assign({}, c, { id: id }));
+    window._clothVisionDraft = editDraft;
+    renderClothForm(editDraft, false, { clothEditorMode:'edit', fromDetail:true, clothId:id });
   });
   $all('.log-del-btn').forEach(function(btn){
     btn.addEventListener('click', function(e){
