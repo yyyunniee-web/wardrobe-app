@@ -440,13 +440,9 @@ function commitClothPhoto(clothId, publicUrl){
 }
 function commitCheckinPhoto(publicUrl){
   publicUrl = normalizePublicUrl(publicUrl);
+  // 仅更新打卡会话预览，禁止回写已有历史 checkin
   checkinPhoto = publicUrl;
   checkinTempPhoto = publicUrl;
-  var todayCk = findCheckin(todayStr());
-  if(todayCk){
-    todayCk.photo = publicUrl;
-    if(typeof render === 'function') render();
-  }
   var area = $('#ck-photo-area');
   if(area){
     var img = area.querySelector('img');
@@ -1451,6 +1447,21 @@ function upsertCloth(data){
   if(idx >= 0) store.clothes[idx] = data;
   else store.clothes.push(data);
 }
+/**
+ * 新增 checkin 的唯一入口（append-only）。
+ * 统一强制生成 id、createdAt；调用方勿依赖入参中的 id/createdAt。
+ */
+function appendCheckin(partial){
+  var record = Object.assign({}, partial || {});
+  record.id = uid();
+  record.createdAt = new Date().toISOString();
+  store.checkins.push(record);
+  return record;
+}
+/**
+ * @deprecated 按日 upsert 会覆盖历史事件，违反 append-only。
+ * 业务写入请改用 appendCheckin。函数本体暂留，便于紧急回滚。
+ */
 function upsertCheckinByDate(checkin){
   var existing = findCheckin(checkin.date);
   if(existing){
@@ -1571,6 +1582,7 @@ function closeSheet(skipReturnCheck){
   }
   window._closetPrefillCat = '';
   clearAiCropSession();
+  if(typeof closeCheckinAfterAddChoice === 'function') closeCheckinAfterAddChoice();
   // 任意阶段关闭弹窗：清除打卡临时图片与勾选缓存（跳转添加衣物时保留）
   if(!checkinPendingReturn){
     if(typeof closeCheckinPickOverlay === 'function') closeCheckinPickOverlay();
@@ -1601,31 +1613,11 @@ function pickWarmQuote(){
 }
 var MOOD_EMOJIS = ['😊','😌','😴','💪','🥺','🥰','😐','😢','🤩'];
 
+/** 方案 A：草稿仅内存态，不写入 checkins；提交走 submitMoodDiary → appendCheckin */
 function saveTodayMoodDraft(){
   if(todayViewDay !== 0) return;
-  var date = todayStr();
-  var existing = findCheckin(date);
-  var w = store.weather;
-  var dayW = w.today;
-  var noteVal = todayMoodNote;
   var moodEl = $('#today-mood-note');
-  if(moodEl) noteVal = moodEl.value;
-  todayMoodNote = noteVal;
-  var checkin = {
-    id: existing ? existing.id : uid(),
-    date: date,
-    photo: existing ? (existing.photo || '') : '',
-    weather: existing ? existing.weather : { city:w.city, temp:dayW.temp, cond:dayW.cond, desc:dayW.desc || '' },
-    moodEmoji: todayEmoji,
-    moodNote: noteVal,
-    mood: todayEmoji || (existing ? existing.mood : ''),
-    note: noteVal || (existing ? existing.note : ''),
-    profileSnapshot: existing ? existing.profileSnapshot : clone(store.profile),
-    items: existing ? (existing.items || []) : []
-  };
-  if(existing && existing.moodIntensity != null) checkin.moodIntensity = existing.moodIntensity;
-  upsertCheckinByDate(checkin);
-  persistCheckins().catch(function(err){ toast('打卡草稿同步失败：'+(err.message||err)); });
+  if(moodEl) todayMoodNote = moodEl.value;
 }
 function checkinMoodLabel(c){
   if(c.moodEmoji) return c.moodEmoji;
@@ -1692,15 +1684,14 @@ function submitMoodDiary(){
   var date = todayStr();
   var w = store.weather;
   var dayW = w.today;
-  store.checkins.push({
-    id: uid(),
+  var prevCheckins = clone(store.checkins);
+  appendCheckin({
     date: date,
     source: 'mood',
     moodEmoji: todayEmoji,
     moodNote: note,
     mood: todayEmoji,
     note: note,
-    createdAt: new Date().toISOString(),
     weather: { city: w.city, temp: dayW.temp, cond: dayW.cond, desc: dayW.desc || '' },
     items: []
   });
@@ -1714,8 +1705,8 @@ function submitMoodDiary(){
     toast('心情已记录');
     render();
   }).catch(function(err){
+    store.checkins = prevCheckins;
     hideLoading();
-    store.checkins.pop();
     toast('心情保存失败：'+(err.message||err));
   });
 }
@@ -2149,10 +2140,10 @@ function restoreCheckinSession(snap){
 function navigateCheckinToAddCloth(){
   checkinTempPhoto = checkinTempPhoto || checkinPhoto || '';
   checkinReturnSession = saveCheckinSession();
-  // 分支A携带穿搭图；分支B不带入图片
-  var photoForForm = (checkinWizardMode === 'photo') ? checkinTempPhoto : '';
-  checkinReturnSession.photo = photoForForm;
+  // 分支A携带穿搭图给表单预览；会话快照保留真实打卡图，避免手动分支把照片清掉
+  var photoForForm = (checkinWizardMode === 'photo') ? (checkinTempPhoto || checkinPhoto || '') : '';
   checkinPendingReturn = true;
+  closeCheckinAfterAddChoice();
   closeSheet(true);
   currentTab = 'closet';
   render();
@@ -2161,7 +2152,7 @@ function navigateCheckinToAddCloth(){
 function openAddClothFromCheckin(photo){
   var html = sheetHeader('添加衣物');
   html += '<div class="px-5 space-y-3">';
-  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">来自打卡跳转 · V1 无 AI 预填，请手动填写全部字段（AI 自动预填为 V2 迭代）</div>';
+  html += '<div class="text-xs text-mute bg-paper rounded-lg p-2.5 leading-relaxed">来自打卡跳转 · 保存后将返回当前打卡，并自动勾选刚添加的衣物</div>';
   html += '<div id="add-area"></div>';
   html += '<div class="h-2"></div></div>';
   openSheet(html);
@@ -2173,23 +2164,73 @@ function isCheckinDirectManualPick(){
   // 分支B：手动挑选，不进入中间过渡页（step2 仅服务上传照片 AI 路径）
   return checkinWizardMode === 'manual' && checkinStep !== 2;
 }
-function returnToCheckinModal(didSave){
+/** 将衣物勾进当前打卡已选（手动集合；若已在 AI 匹配列表则同步勾选） */
+function selectClothInCheckinSession(cloth){
+  if(!cloth || !cloth.id) return;
+  checkinManualSelected[cloth.id] = {
+    id: cloth.id,
+    name: cloth.name || '',
+    category: cloth.category || '',
+    color: cloth.color || '',
+    checked: true
+  };
+  checkinMatches.forEach(function(m){
+    if(m.id === cloth.id) m.checked = true;
+  });
+}
+function closeCheckinAfterAddChoice(){
+  var el = document.getElementById('ck-after-add-sheet');
+  if(el && el.parentNode) el.parentNode.removeChild(el);
+}
+/** 入库成功后：继续添加 / 完成打卡（停留在确认页） */
+function showCheckinAfterAddChoice(){
+  closeCheckinAfterAddChoice();
+  var sheet = document.createElement('div');
+  sheet.id = 'ck-after-add-sheet';
+  sheet.className = 'photo-edit-sheet';
+  sheet.innerHTML =
+    '<div class="photo-edit-sheet-backdrop" data-act="done"></div>'+
+    '<div class="photo-edit-sheet-panel" role="dialog" aria-label="添加成功">'+
+      '<div class="px-4 pt-4 pb-2 text-center text-sm text-ink font-medium">衣物已入库并勾选</div>'+
+      '<div class="px-4 pb-3 text-center text-xs text-mute">可继续添加缺失单品，或完成选择后确认打卡</div>'+
+      '<button type="button" class="photo-edit-sheet-item" data-act="continue">继续添加</button>'+
+      '<button type="button" class="photo-edit-sheet-item photo-edit-sheet-cancel" data-act="done">完成打卡</button>'+
+    '</div>';
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click', function(e){
+    var btn = e.target.closest('[data-act]');
+    if(!btn) return;
+    var act = btn.getAttribute('data-act');
+    closeCheckinAfterAddChoice();
+    if(act === 'continue') navigateCheckinToAddCloth();
+    // done：已在确认页，无需额外操作
+  });
+}
+function returnToCheckinModal(didSave, savedCloth){
   checkinPendingReturn = false;
   if(checkinReturnSession) restoreCheckinSession(checkinReturnSession);
   checkinReturnSession = null;
   window._formPhoto = '';
   currentTab = 'today';
   render();
-  if(checkinWizardMode === 'manual'){
-    // 分支B：回落到衣橱挑选，不进入中间过渡页
-    checkinStep = 1;
+
+  // 统一回到确认页，保留已有勾选，避免掉回照片步导致重选
+  checkinStep = 2;
+  if(!checkinWizardMode) checkinWizardMode = (checkinTempPhoto || checkinPhoto) ? 'photo' : 'manual';
+
+  if(didSave){
+    if(!savedCloth || !savedCloth.id){
+      renderCheckinSheet();
+      toast('保存异常：衣物未正确入库，请重试');
+      return;
+    }
+    selectClothInCheckinSession(savedCloth);
     renderCheckinSheet();
-    openCheckinPickOverlay();
-  } else {
-    checkinStep = 2;
-    renderCheckinSheet();
+    showCheckinAfterAddChoice();
+    return;
   }
-  if(didSave) toast('衣物已入库，请继续打卡');
+
+  renderCheckinSheet();
 }
 
 function wearCountLast30(clothId){
@@ -2691,21 +2732,18 @@ function submitCheckin(resolvedItems, photo){
   var prevCheckins = clone(store.checkins);
   var prevLogs = clone(store.logs);
   resolvedItems.forEach(function(m){ appendWearLog(m.id, date, 'checkin'); });
-  var existing = findCheckin(date);
-  var checkin = {
-    id: existing ? existing.id : uid(),
+  appendCheckin({
     date: date,
+    source: 'checkin',
     photo: photo || '',
     weather: { city:w.city, temp:dayW.temp, cond:dayW.cond, desc:dayW.desc },
     moodEmoji: todayEmoji,
     moodNote: todayMoodNote,
-    mood: todayEmoji || (existing ? existing.mood : ''),
-    note: todayMoodNote || (existing ? existing.note : ''),
+    mood: todayEmoji || '',
+    note: todayMoodNote || '',
     profileSnapshot: clone(store.profile),
     items: resolvedItems.slice()
-  };
-  if(existing && existing.moodIntensity != null) checkin.moodIntensity = existing.moodIntensity;
-  upsertCheckinByDate(checkin);
+  });
   showLoading('同步打卡…');
   persistCheckinsAndLogs().then(function(){
     hideLoading();
@@ -2739,7 +2777,39 @@ function confirmCheckin(){
   submitCheckin(validation.resolved, photoToSave);
 }
 
-/* ---------- 今日：穿搭推荐 ---------- */
+/* ---------- 今日：穿搭推荐（append-only） ---------- */
+function persistRecommendAsCheckin(resolvedItems){
+  var date = todayStr();
+  var w = store.weather;
+  var dayW = todayViewDay === 0 ? w.today : w.tomorrow;
+  var prevCheckins = clone(store.checkins);
+  var prevLogs = clone(store.logs);
+  resolvedItems.forEach(function(it){ appendWearLog(it.id, date, 'recommend'); });
+  appendCheckin({
+    date: date,
+    source: 'recommend',
+    photo: '',
+    weather: { city:w.city, temp:dayW.temp, cond:dayW.cond, desc:dayW.desc },
+    moodEmoji: todayEmoji,
+    moodNote: todayMoodNote,
+    mood: todayEmoji || '',
+    note: todayMoodNote || '',
+    profileSnapshot: clone(store.profile),
+    items: resolvedItems.slice()
+  });
+  showLoading('同步打卡…');
+  persistCheckinsAndLogs().then(function(){
+    hideLoading();
+    closeSheet();
+    render();
+    toast('已生成今日打卡');
+  }).catch(function(err){
+    store.checkins = prevCheckins;
+    store.logs = prevLogs;
+    hideLoading();
+    toast('打卡保存失败：'+(err.message||err));
+  });
+}
 function openRecommend(){
   var day = todayViewDay===0 ? store.weather.today : store.weather.tomorrow;
   var p = store.profile;
@@ -2775,32 +2845,7 @@ function openRecommend(){
       showClothNotRegisteredPrompt(validation.missing);
       return;
     }
-    var date = todayStr();
-    var w = store.weather; var dayW = todayViewDay===0?w.today:w.tomorrow;
-    validation.resolved.forEach(function(it){ appendWearLog(it.id, date, 'recommend'); });
-    var existing = findCheckin(date);
-    var checkin = {
-      id: existing?existing.id:uid(), date:date, photo:'',
-      weather:{ city:w.city, temp:dayW.temp, cond:dayW.cond, desc:dayW.desc },
-      moodEmoji: todayEmoji,
-      moodNote: todayMoodNote,
-      mood: todayEmoji||(existing?existing.mood:''),
-      note: todayMoodNote||(existing?existing.note:''),
-      profileSnapshot: clone(p),
-      items: validation.resolved.slice()
-    };
-    if(existing && existing.moodIntensity != null) checkin.moodIntensity = existing.moodIntensity;
-    upsertCheckinByDate(checkin);
-    showLoading('同步打卡…');
-    persistCheckinsAndLogs().then(function(){
-      hideLoading();
-      closeSheet();
-      render();
-      toast('已生成今日打卡');
-    }).catch(function(err){
-      hideLoading();
-      toast('打卡保存失败：'+(err.message||err));
-    });
+    persistRecommendAsCheckin(validation.resolved);
   }); });
 }
 
@@ -3763,7 +3808,8 @@ function renderClothForm(existing, isAI, opts){
       hideLoading();
       clearPhotoEditSession();
       if(checkinPendingReturn){
-        returnToCheckinModal(true);
+        toast(isNew ? '已入库 · 返回打卡' : '已保存 · 返回打卡');
+        returnToCheckinModal(true, data);
       } else if(opts.fromDetail && existing && existing.id){
         render();
         openClothDetail(existing.id);
