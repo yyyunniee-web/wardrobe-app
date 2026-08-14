@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+node_modules/.vite/
+
+# Build output
+dist/
+
+# OS
+.DS_Store
+
+# Local scratch / test artifacts
+tmp/
