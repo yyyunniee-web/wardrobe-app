@@ -90,7 +90,7 @@ var DEFAULT_STORE = {
   // aiConfig 含 apiKey：仅会话内存，禁止同步到 D1
   // cloudEnabled 默认 true：生产走 Worker AI Proxy，用户无需填写 apiKey
   aiConfig: { cloudEnabled: true, apiKey: '', apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4v-flash' },
-  profile: { avatar:'', name:'', age:'', mbti:'', city:'北京', prefStyles:[], tempPrefs:[], tempPref:'', concerns:'', idealStyles:[], idealText:'', analysisStartDate:'', cloudSyncEnabled:false },
+  profile: { avatar:'', name:'', age:'', mbti:'', city:'北京', prefStyles:[], tempPrefs:[], tempPref:'', concerns:'', idealStyles:[], idealText:'', analysisStartDate:'', cloudSyncEnabled:false, showAlmanac:true },
   customScenes: [],
   weather: { city:'北京', today:{temp:null,cond:'加载中…',desc:''}, tomorrow:{temp:null,cond:'加载中…',desc:''}, manual:false, error:false, loading:true },
   clothes: [],
@@ -152,7 +152,9 @@ function clothToApiItem(cloth){
   pushTag(cloth.status || 'active');
   var meta = {
     category: cloth.category || '',
-    seasons: Array.isArray(cloth.seasons) ? cloth.seasons.slice() : [],
+    seasons: normalizeClothSeasons(cloth.seasons),
+    // 与 seasons 同源别名，便于外部文档/后续读取；权威仍以 seasons 为准
+    season: normalizeClothSeasons(cloth.seasons),
     scenes: Array.isArray(cloth.scenes) ? cloth.scenes.slice() : [],
     color: cloth.color || '',
     colorRaw: cloth.colorRaw || '',
@@ -224,11 +226,15 @@ function apiItemToCloth(item){
   if(!notesParsed && !category){
     console.error('[衣物] 映射失败：notes 无效且 tags 无品类', item.id, item.name);
   }
+  // seasons 权威字段；兼容旧数据缺省、以及 season / 英文 key
+  var rawSeasons = meta.seasons != null ? meta.seasons : meta.season;
+  var seasons = normalizeClothSeasons(rawSeasons);
+  if(!seasons.length) seasons = filterFrom(SEASONS);
   return {
     id: item.id,
     name: item.name || '',
     category: category || '',
-    seasons: Array.isArray(meta.seasons) ? meta.seasons : filterFrom(SEASONS),
+    seasons: seasons,
     scenes: Array.isArray(meta.scenes) ? meta.scenes : filterFrom(SCENE_TAGS.concat(custom)),
     color: (meta.color != null && meta.color !== '') ? String(meta.color) : (pickFrom(COLORS) || ''),
     colorRaw: (meta.colorRaw != null && meta.colorRaw !== '') ? String(meta.colorRaw) : '',
@@ -244,6 +250,34 @@ function apiItemToCloth(item){
 /** @deprecated 使用 apiItemToCloth */
 function storeItemToCloth(item){ return apiItemToCloth(item); }
 
+/** 季节规范化：存中文 春夏秋冬；兼容 spring/summer 等英文与缺省空数组 */
+var SEASON_EN_TO_ZH = { spring:'春', summer:'夏', autumn:'秋', fall:'秋', winter:'冬', all:'四季', fours:'四季' };
+function normalizeClothSeasons(raw){
+  var list = [];
+  if(Array.isArray(raw)) list = raw;
+  else if(typeof raw === 'string' && raw.trim()) list = raw.split(/[,，、\s]+/);
+  var out = [];
+  list.forEach(function(s){
+    if(s == null || s === '') return;
+    var t = String(s).trim();
+    var low = t.toLowerCase();
+    if(SEASON_EN_TO_ZH[low]) t = SEASON_EN_TO_ZH[low];
+    if(SEASONS.indexOf(t) < 0 && t !== '四季') return;
+    if(t === '四季'){
+      SEASONS.forEach(function(zh){ if(out.indexOf(zh)<0) out.push(zh); });
+      return;
+    }
+    if(out.indexOf(t)<0) out.push(t);
+  });
+  return out;
+}
+
+/** 黄历开关：默认开启；旧 profile 无字段视为开启 */
+function isAlmanacEnabled(){
+  if(!store || !store.profile) return true;
+  return store.profile.showAlmanac !== false;
+}
+
 /** 用 dataStore 权威列表刷新页面内存衣物（不写 localStorage） */
 function syncClothesFromDataStore(){
   store.clothes = getClothes().map(apiItemToCloth);
@@ -258,6 +292,8 @@ function applyCloudProfileToStore(remote){
   // 兼容 nickname / avatar_url 字段名
   if(!store.profile.name && src.nickname) store.profile.name = String(src.nickname);
   if(!store.profile.avatar && src.avatar_url) store.profile.avatar = String(src.avatar_url);
+  // 旧资料无 showAlmanac：保持默认开启
+  if(store.profile.showAlmanac == null) store.profile.showAlmanac = true;
 }
 
 function syncProfileFromDataStore(){
@@ -1890,11 +1926,14 @@ function getLunarAlmanac(dateStr){
   var lunar = solar.getLunar();
   var yiArr = lunar.getDayYi() || [];
   var jiArr = lunar.getDayJi() || [];
+  // 黄历只展示前三条，避免完整列表
   return {
     solarText: solar.getYear()+'年'+solar.getMonth()+'月'+solar.getDay()+'日 '+solar.getWeekInChinese(),
     lunarText: '农历'+lunar.getMonthInChinese()+'月'+lunar.getDayInChinese(),
-    yi: yiArr.slice(0, 4).join('、'),
-    ji: jiArr.slice(0, 4).join('、'),
+    yi: yiArr.slice(0, 3).join('、'),
+    ji: jiArr.slice(0, 3).join('、'),
+    yiList: yiArr.slice(0, 3),
+    jiList: jiArr.slice(0, 3),
     inspire: genOutfitInspire(dateStr)
   };
 }
@@ -1910,6 +1949,7 @@ function formatWeatherCardDateShort(dateStr){
   return m+'月'+d+'日 周'+weekNames[dt.getDay()];
 }
 function renderWeatherAlmanacEmbed(almanac){
+  if(!isAlmanacEnabled()) return '';
   if(!almanac || (!almanac.yi && !almanac.ji)) return '';
   var html = '<div class="weather-yiji-grid">';
   html += '<div class="weather-yiji-card weather-yiji-yi"><div class="weather-yiji-label">宜</div><div class="weather-yiji-val">'+(almanac.yi ? esc(almanac.yi) : '—')+'</div></div>';
@@ -1918,6 +1958,7 @@ function renderWeatherAlmanacEmbed(almanac){
   return html;
 }
 function renderAlmanacCard(almanac){
+  if(!isAlmanacEnabled()) return '';
   if(!almanac){
     return '<div class="almanac-card bg-white border border-line section-gap mb-2.5"><div class="text-sm text-mute text-center py-8">黄历库加载中，请刷新后重试</div></div>';
   }
@@ -3338,6 +3379,7 @@ var closetFilterCat = '';
 var closetSort = 'buyDateDesc'; // 保留兼容，首页概览不再使用精细排序
 var closetListCat = ''; // 非空 = 处于品类独立列表页
 var closetListSort = 'buyDateDesc'; // 列表页独立排序，与首页互不干扰
+var closetListSeason = ''; // ''=全部；春|夏|秋|冬 仅筛选展示
 
 var CLOSET_SORT_GROUPS = [
   ['购买时间','buyDateDesc','buyDateAsc'],
@@ -3427,12 +3469,19 @@ function clothCategoryBucket(c){
 function clothesInCategory(cat, opts){
   opts = opts || {};
   var applySearch = opts.applySearch !== false;
+  var seasonFilter = opts.seasonFilter != null ? opts.seasonFilter : '';
   var q = applySearch ? (closetSearch || '').toLowerCase() : '';
   var list = store.clothes.filter(function(c){
     if(closetMode==='active' && c.status!=='active') return false;
     if(closetMode==='retired' && c.status!=='retired') return false;
     if(q && String(c.name||'').toLowerCase().indexOf(q)<0) return false;
     if(clothCategoryBucket(c) !== cat) return false;
+    if(seasonFilter){
+      var clothSeasons = normalizeClothSeasons(c.seasons);
+      // 无季节的旧衣物：仅在「全部」中展示，避免筛季节时报错或误伤
+      if(!clothSeasons.length) return false;
+      if(clothSeasons.indexOf(seasonFilter) < 0) return false;
+    }
     return true;
   });
   if(opts.sortKey) return sortClosetClothes(list, opts.sortKey);
@@ -3484,9 +3533,9 @@ function clothListRowHtml(c){
   return html;
 }
 
-/* 品类独立列表页：精细排序仅在此页生效 */
+/* 品类独立列表页：精细排序仅在此页生效；季节筛选只影响展示 */
 function viewClosetCategoryList(cat){
-  var list = clothesInCategory(cat, { applySearch:false, sortKey:closetListSort });
+  var list = clothesInCategory(cat, { applySearch:false, sortKey:closetListSort, seasonFilter:closetListSeason });
   var html = '';
   html += '<div class="page-shell px-5 pt-6" style="padding-top:var(--page-pad-top)">';
   html += '<div class="flex items-center justify-between mb-4 gap-2">';
@@ -3496,7 +3545,15 @@ function viewClosetCategoryList(cat){
   html += '<button id="add-cloth" class="bg-brand text-white rounded-full px-3 py-2 text-sm flex items-center gap-1 flex-shrink-0">';
   html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>添加</button></div>';
 
-  html += '<div class="text-xs text-mute mb-2">共 '+list.length+' 件</div>';
+  // 季节筛选：全部 / 春夏秋冬（不改数据）
+  html += '<div class="flex flex-wrap gap-2 mb-3" id="closet-list-season-bar">';
+  [{v:'', label:'全部'}].concat(SEASONS.map(function(s){ return { v:s, label:s }; })).forEach(function(opt){
+    var on = closetListSeason === opt.v;
+    html += '<button type="button" class="closet-season-chip text-sm px-3 py-1.5 rounded-full border '+(on?'bg-brand text-white border-brand':'bg-white border-line text-ink')+'" data-season="'+esc(opt.v)+'">'+esc(opt.label)+'</button>';
+  });
+  html += '</div>';
+
+  html += '<div class="text-xs text-mute mb-2">共 '+list.length+' 件'+(closetListSeason ? (' · '+esc(closetListSeason)) : '')+'</div>';
 
   // 列表页独立排序控件
   html += '<div class="closet-sort-bar" id="closet-list-sort-bar">';
@@ -3504,7 +3561,11 @@ function viewClosetCategoryList(cat){
   html += '</div>';
 
   if(!list.length){
-    html += '<div class="text-center text-mute text-sm py-12 bg-white rounded-2xl border border-line">暂无「'+esc(cat)+'」衣物</div>';
+    html += '<div class="text-center text-mute text-sm py-12 bg-white rounded-2xl border border-line">';
+    html += closetListSeason
+      ? ('暂无「'+esc(cat)+' · '+esc(closetListSeason)+'」衣物<br/><span class="text-xs">可在编辑衣物时补充季节，或切换「全部」查看</span>')
+      : ('暂无「'+esc(cat)+'」衣物');
+    html += '</div>';
     html += '<button type="button" class="mt-3 w-full cat-add-placeholder bg-white border border-dashed border-brand/40 rounded-xl py-3 text-sm text-brand-dark" data-cat="'+esc(cat)+'">添加'+esc(cat)+'</button>';
   } else {
     html += '<div class="space-y-2">';
@@ -3572,7 +3633,7 @@ function filteredClothes(){
 
 function filteredClothesForListPage(){
   if(!closetListCat) return [];
-  return clothesInCategory(closetListCat, { applySearch:false, sortKey:closetListSort });
+  return clothesInCategory(closetListCat, { applySearch:false, sortKey:closetListSort, seasonFilter:closetListSeason });
 }
 
 function bindCloset(){
@@ -3585,6 +3646,7 @@ function bindCloset(){
   var backBtn = $('#closet-list-back');
   if(backBtn) backBtn.addEventListener('click', function(){
     closetListCat = '';
+    closetListSeason = '';
     render();
   });
 
@@ -3592,6 +3654,13 @@ function bindCloset(){
   if(searchEl) searchEl.addEventListener('input', function(){ closetSearch=this.value; render(); });
   var catEl = $('#closet-cat');
   if(catEl) catEl.addEventListener('change', function(){ closetFilterCat=this.value; render(); });
+
+  $all('#closet-list-season-bar .closet-season-chip').forEach(function(b){
+    b.addEventListener('click', function(){
+      closetListSeason = b.dataset.season || '';
+      render();
+    });
+  });
 
   // 列表页独立排序（仅绑定列表页排序条，不写回首页状态）
   var listSortBar = $('#closet-list-sort-bar');
@@ -3619,6 +3688,7 @@ function bindCloset(){
       var cat = b.dataset.cat || '';
       if(!cat) return;
       closetListCat = cat;
+      closetListSeason = '';
       // 进入列表页时不改动首页全局筛选 closetFilterCat
       render();
     });
@@ -4009,7 +4079,7 @@ function renderClothForm(existing, isAI, opts){
   html += textInput('f-name','名称',c.name);
   html += selectInputEmpty('f-category','品类',CATEGORIES,c.category);
   // 季节多选
-  html += '<div><div class="text-xs text-mute mb-1">季节标签</div><div class="flex flex-wrap gap-2">';
+  html += '<div><div class="text-xs text-mute mb-1">季节标签 <span class="text-mute/80">（可选，可多选）</span></div><div class="flex flex-wrap gap-2">';
   SEASONS.forEach(function(s){
     var on = c.seasons&&c.seasons.indexOf(s)>=0;
     html += '<button class="season-btn text-sm px-3 py-1.5 rounded-full border '+(on?'bg-brand text-white border-brand':'bg-white border-line')+'" data-v="'+s+'">'+s+'</button>';
@@ -4260,7 +4330,7 @@ function collectForm(c, seasons, scenesSel){
   return {
     name: $('#f-name').value.trim(),
     category: $('#f-category').value,
-    seasons: seasons.slice(),
+    seasons: normalizeClothSeasons(seasons),
     scenes: scenesSel.slice(),
     color: colorVal,
     // 若用户仍选基础色，保留订单原文 colorRaw；若改选了原文色名则同步
@@ -5369,6 +5439,16 @@ function viewSettings(){
   html += '<button id="p-save" class="w-full bg-brand text-white rounded-xl py-3 text-sm font-medium">保存画像</button>';
   html += '</div>';
 
+  // 黄历显示（默认开启；写入 profile，随画像同步云端）
+  html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-3">';
+  html += '<div class="text-sm font-semibold">今日黄历</div>';
+  html += '<label class="flex items-center justify-between gap-3 cursor-pointer">';
+  html += '<div class="min-w-0"><div class="text-sm text-ink">显示黄历宜忌</div>';
+  html += '<div class="text-xs text-mute mt-0.5">关闭后今日页不再展示黄历内容</div></div>';
+  html += '<input id="p-show-almanac" type="checkbox" class="rounded border-line w-4 h-4 flex-shrink-0"'+(isAlmanacEnabled()?' checked':'')+' />';
+  html += '</label>';
+  html += '</div>';
+
   // 数据备份（精简）
   html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-3">';
   html += '<div class="text-sm font-semibold">数据备份</div>';
@@ -5451,6 +5531,25 @@ function bindSettings(){
     });
   });
 
+  var almanacToggle = $('#p-show-almanac');
+  if(almanacToggle){
+    almanacToggle.addEventListener('change', function(){
+      var next = !!almanacToggle.checked;
+      var prev = store.profile.showAlmanac !== false;
+      store.profile.showAlmanac = next;
+      showLoading('保存设置…');
+      saveUserProfileToApi().then(function(){
+        hideLoading();
+        toast(next ? '已开启黄历' : '已关闭黄历');
+      }).catch(function(err){
+        hideLoading();
+        store.profile.showAlmanac = prev;
+        almanacToggle.checked = prev;
+        toast('设置保存失败：'+(err.message||err));
+      });
+    });
+  }
+
   $('#p-save').addEventListener('click', function(){
     if(_profileSaving){ toast('正在保存，请稍候'); return; }
     if(_avatarUploading){ toast('头像仍在上传，请稍候'); return; }
@@ -5463,6 +5562,8 @@ function bindSettings(){
     store.profile.mbti = mbti;
     store.profile.city = city;
     store.profile.prefStyles = pref.slice();
+    if(almanacToggle) store.profile.showAlmanac = !!almanacToggle.checked;
+    else if(store.profile.showAlmanac == null) store.profile.showAlmanac = true;
     store.weather.city = city;
     _profileSaving = true;
     showLoading('保存画像中…');
