@@ -43,7 +43,12 @@ function isSameOrigin(url) {
 }
 
 function isApiRequest(url) {
-  return url.hostname.indexOf('workers.dev') >= 0 || url.pathname.indexOf('/api/') === 0;
+  return (
+    url.hostname.indexOf('workers.dev') >= 0 ||
+    url.hostname.indexOf('r2.dev') >= 0 ||
+    url.pathname.indexOf('/api/') === 0 ||
+    url.pathname.indexOf('/media/') === 0
+  );
 }
 
 function networkFirst(request) {

@@ -5,7 +5,9 @@
  * - 通用资源 CRUD：后续拓展只需注册 ResourceType
  */
 
-export const API_BASE = 'https://wardrobe-api.yyyunniee.workers.dev';
+import { API_BASE } from '@/config/endpoints';
+
+export { API_BASE };
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
 

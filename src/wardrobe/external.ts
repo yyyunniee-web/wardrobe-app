@@ -2,6 +2,7 @@
  * 第三方接口（天气 / AI 视觉），页面禁止直接写 fetch
  */
 import { API_BASE } from '@/utils/request';
+import { toWorkerFetchUrl } from '@/utils/mediaUrl';
 
 export async function fetchJson<T = unknown>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -20,7 +21,8 @@ export async function callVisionAPI(
   prompt: string,
   _cfg?: { modelName?: string; apiKey?: string; apiUrl?: string; timeoutMs?: number },
 ): Promise<string> {
-  const imageUrl = String(imageDataUrl || '').trim();
+  // Worker 在 CF 侧拉图：传 R2 绝对地址，避免同源 /media 对 Worker 不可达
+  const imageUrl = toWorkerFetchUrl(imageDataUrl);
   const promptText = String(prompt || '').trim();
   if (!imageUrl) throw new Error('缺少图片地址');
   if (!promptText) throw new Error('缺少 prompt');

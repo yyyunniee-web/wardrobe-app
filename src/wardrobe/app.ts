@@ -25,6 +25,7 @@ import {
   uploadClothImage,
 } from '@/stores/dataStore';
 import { api } from '@/utils/request';
+import { normalizePublicUrl, toDisplayPhotoUrl } from '@/utils/mediaUrl';
 import { callVisionAPI as callVisionAPIExternal, fetchRealWeather as fetchRealWeatherExternal } from '@/wardrobe/external';
 import { getVisionPrompt, isIsoPurchaseDate } from '@/wardrobe/aiBeta22';
 import { ocrPurchaseDateFromImage } from '@/wardrobe/ocrClient';
@@ -129,7 +130,7 @@ function scheduleOcrPurchaseDateMerge(publicUrl, clothSnapshot){
   var baselineBuyDate = String((clothSnapshot && clothSnapshot.buyDate) || '').trim();
   setBuyDateOcrStatus('日期识别中…', 'mute');
   console.log('[AI衣橱] OCR 后台开始 gen=', gen);
-  ocrPurchaseDateFromImage(publicUrl, { timeoutMs: 12000 }).then(function(ocrRes){
+  ocrPurchaseDateFromImage(toDisplayPhotoUrl(publicUrl) || publicUrl, { timeoutMs: 12000 }).then(function(ocrRes){
     if(gen !== _ocrMergeGen){
       console.log('[AI衣橱] OCR 结果已过期，丢弃 gen=', gen);
       return;
@@ -484,22 +485,18 @@ function bindDataStoreView(){
 }
 
 /* ---------- 图片展示工具 ---------- */
-function normalizePublicUrl(url){
-  if(url == null || url === '') return '';
-  return String(url).trim();
-}
 function photoAttrSrc(url){
-  return normalizePublicUrl(url)
+  return toDisplayPhotoUrl(url)
     .replace(/&/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;');
 }
 function photoImgHtml(url, className, extraAttrs){
-  var src = normalizePublicUrl(url);
+  var src = toDisplayPhotoUrl(url);
   if(!src) return '';
   var cls = className ? ' class="'+className+'"' : '';
   var extra = extraAttrs ? ' '+extraAttrs : '';
-  return '<img src="'+photoAttrSrc(src)+'"'+cls+' alt="穿搭照片" data-remote-photo="1"'+extra+' style="max-width:100%;" onerror="console.log(\'图片加载失败的地址：\', this.src);window.__onPhotoError&&window.__onPhotoError(this)" />';
+  return '<img src="'+photoAttrSrc(url)+'"'+cls+' alt="穿搭照片" data-remote-photo="1"'+extra+' style="max-width:100%;" onerror="console.log(\'图片加载失败的地址：\', this.src);window.__onPhotoError&&window.__onPhotoError(this)" />';
 }
 window.__onPhotoError = function(img){
   if(!img || img.getAttribute('data-photo-failed') === '1') return;
@@ -536,12 +533,13 @@ function uploadImage(file){
 }
 function setFormPhotoPreview(url){
   url = normalizePublicUrl(url);
+  var display = toDisplayPhotoUrl(url) || url;
   var el = $('#f-photo');
   if(!el) return;
   if(el.tagName === 'IMG'){
     el.removeAttribute('data-photo-failed');
     el.classList.remove('photo-load-failed');
-    el.src = url;
+    el.src = display;
     el.setAttribute('data-remote-photo', '1');
     el._photoErrBound = false;
     bindPhotoFallbacks(el.parentNode || document);
@@ -572,6 +570,7 @@ function commitClothPhoto(clothId, publicUrl){
 }
 function commitCheckinPhoto(publicUrl){
   publicUrl = normalizePublicUrl(publicUrl);
+  var display = toDisplayPhotoUrl(publicUrl) || publicUrl;
   // 仅更新打卡会话预览，禁止回写已有历史 checkin
   checkinPhoto = publicUrl;
   checkinTempPhoto = publicUrl;
@@ -582,7 +581,7 @@ function commitCheckinPhoto(publicUrl){
     if(img){
       img.removeAttribute('data-photo-failed');
       img.classList.remove('photo-load-failed');
-      img.src = publicUrl;
+      img.src = display;
       img.setAttribute('data-remote-photo', '1');
       img._photoErrBound = false;
       bindPhotoFallbacks(area);
@@ -592,7 +591,7 @@ function commitCheckinPhoto(publicUrl){
     if(img.id === 'f-photo') return;
     img.removeAttribute('data-photo-failed');
     img.classList.remove('photo-load-failed');
-    img.src = publicUrl;
+    img.src = display;
     img.setAttribute('data-remote-photo', '1');
     img._photoErrBound = false;
   });
@@ -981,7 +980,7 @@ function loadLocalImageFile(file){
 
 function loadImageFromUrl(url){
   return new Promise(function(resolve, reject){
-    var src = String(url || '').trim();
+    var src = toDisplayPhotoUrl(url) || String(url || '').trim();
     if(!src) return reject(new Error('缺少图片地址'));
     var img = new Image();
     if(/^https?:/i.test(src)) img.crossOrigin = 'anonymous';
@@ -2193,7 +2192,7 @@ function viewToday(){
   html += '<div class="weather-card-head">';
   html += '<div class="weather-profile-name-row">';
   if(p.avatar){
-    html += '<div class="avatar-circle" style="width:3.375rem;height:3.375rem;border:2px solid rgba(255,251,245,0.9)"><img src="'+p.avatar+'" alt="" /></div>';
+    html += '<div class="avatar-circle" style="width:3.375rem;height:3.375rem;border:2px solid rgba(255,251,245,0.9)"><img src="'+esc(toDisplayPhotoUrl(p.avatar))+'" alt="" /></div>';
   } else {
     html += '<div class="avatar-circle avatar-placeholder" style="width:3.375rem;height:3.375rem;border:2px solid rgba(255,251,245,0.9)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>';
   }
@@ -5545,7 +5544,7 @@ function viewSettings(){
   html += '<label class="cursor-pointer flex-shrink-0">';
   html += '<input id="p-avatar-file" type="file" accept="image/*" class="hidden" />';
   if(p.avatar){
-    html += '<div class="avatar-circle" style="width:4.5rem;height:4.5rem"><img id="p-avatar-preview" src="'+p.avatar+'" alt="" /></div>';
+    html += '<div class="avatar-circle" style="width:4.5rem;height:4.5rem"><img id="p-avatar-preview" src="'+esc(toDisplayPhotoUrl(p.avatar))+'" alt="" /></div>';
   } else {
     html += '<div class="avatar-circle avatar-placeholder" style="width:4.5rem;height:4.5rem" id="p-avatar-preview"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>';
   }
@@ -5664,10 +5663,11 @@ function bindSettings(){
       }
       var url = String(res.data.url).trim();
       store.profile.avatar = url;
+      var display = toDisplayPhotoUrl(url) || url;
       var prev = $('#p-avatar-preview');
       if(prev){
-        if(prev.tagName === 'IMG') prev.src = url;
-        else prev.outerHTML = '<div class="avatar-circle" style="width:4.5rem;height:4.5rem"><img id="p-avatar-preview" src="'+esc(url)+'" alt="" /></div>';
+        if(prev.tagName === 'IMG') prev.src = display;
+        else prev.outerHTML = '<div class="avatar-circle" style="width:4.5rem;height:4.5rem"><img id="p-avatar-preview" src="'+esc(display)+'" alt="" /></div>';
       }
       toast('头像已上传，请点击「保存画像」同步到云端');
     }).catch(function(err){
