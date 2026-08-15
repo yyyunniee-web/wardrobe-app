@@ -1,5 +1,6 @@
 {
   "apiBase": "https://wardrobe-api.yyyunniee.workers.dev",
   "scene": "image-recognition",
-  "timeoutMs": 120000
+  "timeoutMs": 120000,
+  "promptFile": "prompts/image-recognition.purchaseDate-exp.txt"
 }

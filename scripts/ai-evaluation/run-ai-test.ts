@@ -8,8 +8,8 @@ import {
   EVAL_ROOT,
   fieldDiff,
   listImageRecognitionCases,
-  loadAIPromptFromApp,
   loadConfig,
+  loadEvalPrompt,
   tryParseJsonObject,
 } from './lib/dataset.ts';
 import { callWorkerVision, uploadEvalImage } from './lib/vision-client.ts';
@@ -48,8 +48,8 @@ async function resolveImageUrl(
 }
 
 async function main() {
-  const { apiBase, timeoutMs } = loadConfig();
-  const { prompt, promptVersion } = loadAIPromptFromApp();
+  const { apiBase, timeoutMs, promptFile } = loadConfig();
+  const { prompt, promptVersion, source: promptSource } = loadEvalPrompt(promptFile);
   const cases = listImageRecognitionCases();
   if (!cases.length) {
     console.error('datasets/image-recognition/labels 下没有 .json 用例');
@@ -63,6 +63,7 @@ async function main() {
 
   console.log(`runId=${runId}`);
   console.log(`apiBase=${apiBase}`);
+  console.log(`promptSource=${promptSource}`);
   console.log(`promptVersion=${promptVersion}`);
   console.log(`cases=${cases.length}`);
 
@@ -120,6 +121,10 @@ async function main() {
       vision.ok ? vision.text : `ERROR: ${vision.error}`,
       'utf8',
     );
+    const { compareSource, purchaseDateCompareSource, diffs, parseOk } = fieldDiff(
+      c.label,
+      parsed,
+    );
     fs.writeFileSync(
       path.join(rawDir, `${c.id}.meta.json`),
       JSON.stringify(
@@ -129,7 +134,10 @@ async function main() {
           ok: vision.ok,
           error: entry.error,
           promptVersion,
-          diffs: fieldDiff(c.label, parsed),
+          compareSource,
+          purchaseDateCompareSource,
+          parseOk,
+          diffs,
         },
         null,
         2,

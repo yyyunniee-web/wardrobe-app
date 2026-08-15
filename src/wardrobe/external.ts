@@ -13,40 +13,70 @@ export async function fetchJson<T = unknown>(url: string, init?: RequestInit): P
  * 视觉识别：经 Cloudflare Worker 代理（Key 仅服务端）。
  * 仍返回模型文本字符串，供 parseAIResponse 使用。
  * cfg 保留签名兼容；不再向浏览器暴露 / 依赖 apiKey。
+ * timeoutMs 默认 20s，超时 abort，避免无限 loading。
  */
 export async function callVisionAPI(
   imageDataUrl: string,
   prompt: string,
-  _cfg?: { modelName?: string; apiKey?: string; apiUrl?: string },
+  _cfg?: { modelName?: string; apiKey?: string; apiUrl?: string; timeoutMs?: number },
 ): Promise<string> {
   const imageUrl = String(imageDataUrl || '').trim();
   const promptText = String(prompt || '').trim();
   if (!imageUrl) throw new Error('缺少图片地址');
   if (!promptText) throw new Error('缺少 prompt');
 
+  const timeoutMs =
+    _cfg && typeof _cfg.timeoutMs === 'number' && _cfg.timeoutMs > 0
+      ? _cfg.timeoutMs
+      : 20_000;
+
   const endpoint = `${API_BASE.replace(/\/$/, '')}/ai/vision`;
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrl, prompt: promptText }),
-  });
+  const ctrl = new AbortController();
+  const started = Date.now();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
 
-  let data: { ok?: boolean; text?: string; error?: string } | null = null;
   try {
-    data = (await res.json()) as { ok?: boolean; text?: string; error?: string };
-  } catch {
-    data = null;
-  }
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl, prompt: promptText }),
+      signal: ctrl.signal,
+    });
 
-  if (!res.ok) {
-    throw new Error((data && data.error) || `AI 代理失败 HTTP ${res.status}`);
+    let data: { ok?: boolean; text?: string; error?: string } | null = null;
+    try {
+      data = (await res.json()) as { ok?: boolean; text?: string; error?: string };
+    } catch {
+      data = null;
+    }
+
+    const durationMs = Date.now() - started;
+    console.log('[AI衣橱] Vision duration=', durationMs, 'ms');
+
+    if (!res.ok) {
+      throw new Error((data && data.error) || `AI 代理失败 HTTP ${res.status}`);
+    }
+    if (!data || data.ok === false) {
+      throw new Error((data && data.error) || 'AI 代理返回失败');
+    }
+    const text = data.text != null ? String(data.text).trim() : '';
+    if (!text) throw new Error('返回内容为空');
+    return text;
+  } catch (err) {
+    const durationMs = Date.now() - started;
+    const aborted =
+      (err instanceof DOMException && err.name === 'AbortError') ||
+      (err instanceof Error && err.name === 'AbortError') ||
+      (typeof err === 'object' && err !== null && (err as { name?: string }).name === 'AbortError');
+    if (aborted || ctrl.signal.aborted) {
+      console.warn('[AI衣橱] Vision timeout reason=client_abort after', durationMs, 'ms limit=', timeoutMs);
+      throw new Error(`识别超时（${Math.round(timeoutMs / 1000)}秒），请重试或改用手动填写`);
+    }
+    console.warn('[AI衣橱] Vision failed after', durationMs, 'ms', err);
+    throw err instanceof Error ? err : new Error(String(err));
+  } finally {
+    clearTimeout(timer);
   }
-  if (!data || data.ok === false) {
-    throw new Error((data && data.error) || 'AI 代理返回失败');
-  }
-  const text = data.text != null ? String(data.text).trim() : '';
-  if (!text) throw new Error('返回内容为空');
-  return text;
 }
 
 type WeatherDay = { temp: number | null; cond: string; desc: string };

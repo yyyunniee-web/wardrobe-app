@@ -67,16 +67,38 @@ function renderMarkdown(summary: RunSummary): string {
     lines.push('');
     lines.push('差异：');
     lines.push('');
-    const diffs = fieldDiff(c.label, c.parsed || null);
+    // 优先从 rawText 再解析（保留 raw 原文展示）；分类不依赖旧 parsed 形态
+    const parsedForDiff =
+      (c.ok && c.rawText ? tryParseJsonObject(c.rawText) : null) || c.parsed || null;
+    const { compareSource, purchaseDateCompareSource, diffs, parseOk } = fieldDiff(
+      c.label,
+      parsedForDiff,
+    );
+    lines.push(`- compareSource: \`${compareSource}\``);
+    lines.push(`- purchaseDateCompareSource: \`${purchaseDateCompareSource}\``);
+    lines.push(
+      '- diffKind: `missing` | `format_mismatch` | `semantic_match` | `value_mismatch` | `parse_error`',
+    );
     if (!c.ok) {
       lines.push('- （调用失败，未做字段对比）');
-    } else if (!c.parsed) {
-      lines.push('- （AI 输出未能解析为 JSON 对象）');
+    } else if (!parseOk) {
+      lines.push('- parseOk: `false`（AI 输出未能解析为 JSON；下列字段均为 parse_error）');
+      if (!diffs.length) {
+        lines.push('- （标准未填可对比字段）');
+      } else {
+        for (const d of diffs) {
+          lines.push(
+            `- **${d.field}** \`${d.kind}\`: 标准 \`${JSON.stringify(d.expected)}\` → AI \`${JSON.stringify(d.actual)}\``,
+          );
+        }
+      }
     } else if (!diffs.length) {
       lines.push('- （所列对比字段与标准一致或标准未填）');
     } else {
       for (const d of diffs) {
-        lines.push(`- **${d.field}**: 标准 \`${JSON.stringify(d.expected)}\` → AI \`${JSON.stringify(d.actual)}\``);
+        lines.push(
+          `- **${d.field}** \`${d.kind}\`: 标准 \`${JSON.stringify(d.expected)}\` → AI \`${JSON.stringify(d.actual)}\``,
+        );
       }
     }
     lines.push('');

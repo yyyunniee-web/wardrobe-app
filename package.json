@@ -1,7 +1,7 @@
 {
   "name": "vite-react-typescript-starter",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,13 +10,27 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "ai:test": "node --experimental-strip-types scripts/ai-evaluation/run-ai-test.ts",
-    "ai:report": "node --experimental-strip-types scripts/ai-evaluation/generate-report.ts"
+    "ai:report": "node --experimental-strip-types scripts/ai-evaluation/generate-report.ts",
+    "ai:wardrobe-entry": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-eval.ts",
+    "ai:wardrobe-entry:dry": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-eval.ts --dry-run",
+    "ai:wardrobe-entry:baseline": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-eval.ts --version=baseline",
+    "ai:wardrobe-entry:current": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-eval.ts --version=current",
+    "ai:wardrobe-entry:compare": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-eval.ts --version=both",
+    "ai:wardrobe-entry:ocr-isolation": "node --experimental-strip-types scripts/ai-evaluation/run-wardrobe-entry-ocr-isolation.ts",
+    "ai:category-ab": "node --experimental-strip-types scripts/ai-evaluation/run-category-ab.ts",
+    "ai:category-product-focus": "node --experimental-strip-types scripts/ai-evaluation/run-category-ab.ts --product-focus",
+    "ai:beta2-final": "node --experimental-strip-types scripts/ai-evaluation/run-beta2-final-regression.ts",
+    "ai:beta21-isolation": "node --experimental-strip-types scripts/ai-evaluation/run-beta21-merge-isolation.ts",
+    "ai:beta22-color": "node --experimental-strip-types scripts/ai-evaluation/run-beta22-color-isolation.ts",
+    "ai:beta22-smoke": "node --experimental-strip-types scripts/ai-evaluation/run-beta22-local-smoke.ts",
+    "ai:beta22-perf": "node --experimental-strip-types scripts/ai-evaluation/run-beta22-performance-smoke.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
     "lucide-react": "^0.446.0",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",

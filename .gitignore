@@ -17,3 +17,4 @@ scripts/ai-evaluation/reports/latest-report.md
 scripts/ai-evaluation/reports/latest-run.json
 scripts/ai-evaluation/datasets/image-recognition/images/*
 !scripts/ai-evaluation/datasets/image-recognition/images/.gitkeep
+scripts/ai-evaluation/ocr/vision-ocr

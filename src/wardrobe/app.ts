@@ -26,7 +26,10 @@ import {
 } from '@/stores/dataStore';
 import { api } from '@/utils/request';
 import { callVisionAPI as callVisionAPIExternal, fetchRealWeather as fetchRealWeatherExternal } from '@/wardrobe/external';
+import { getVisionPrompt, isIsoPurchaseDate } from '@/wardrobe/aiBeta22';
+import { ocrPurchaseDateFromImage } from '@/wardrobe/ocrClient';
 import { checkForAppUpdate } from '@/wardrobe/pwa';
+import { AI_RELEASE_NAME, APP_VERSION_LABEL } from '@/wardrobe/version';
 
 /* ============================================================
    个人智能穿搭衣橱 — 单文件 PWA
@@ -84,12 +87,105 @@ var AI_PROMPT = [
   '}'
 ].join('\n');
 
+/** Beta1 / Beta2.2 开关（会话；可回滚到 beta1） */
+function getVisionPipeline(){
+  var p = store && store.aiConfig && store.aiConfig.visionPipeline;
+  return p === 'beta1' ? 'beta1' : 'beta2';
+}
+
+function activeVisionPrompt(){
+  return getVisionPrompt(AI_PROMPT, getVisionPipeline());
+}
+
+/** OCR 完整日期覆盖 Vision buyDate（不改 color/price） */
+function mergeOcrPurchaseDateIntoCloth(cloth, ocrDate){
+  if(!cloth || !ocrDate || !isIsoPurchaseDate(ocrDate)) return cloth;
+  cloth.buyDate = ocrDate;
+  cloth.orderPurchaseDate = ocrDate;
+  cloth.purchaseDate = ocrDate;
+  cloth._ocrPurchaseDate = ocrDate;
+  cloth._ocrDatePending = false;
+  cloth._fieldSources = cloth._fieldSources || {};
+  cloth._fieldSources.buyDate = 'ocr';
+  return cloth;
+}
+
+/** 后台 OCR 世代号：新一次识别作废未完成的旧 OCR 写回 */
+var _ocrMergeGen = 0;
+
+function setBuyDateOcrStatus(text, kind){
+  var el = $('#f-buyDate-ocr-status');
+  if(!el) return;
+  el.textContent = text || '';
+  el.className = 'text-xs mt-1 ' + (kind === 'ok' ? 'text-brand-dark' : (kind === 'warn' ? 'text-warn' : 'text-mute'));
+}
+
+/**
+ * Vision 出表单后后台跑 OCR；超时/失败不影响保存。
+ * 仅当用户未改购买日期输入时写回 OCR 日期。
+ */
+function scheduleOcrPurchaseDateMerge(publicUrl, clothSnapshot){
+  var gen = ++_ocrMergeGen;
+  var baselineBuyDate = String((clothSnapshot && clothSnapshot.buyDate) || '').trim();
+  setBuyDateOcrStatus('日期识别中…', 'mute');
+  console.log('[AI衣橱] OCR 后台开始 gen=', gen);
+  ocrPurchaseDateFromImage(publicUrl, { timeoutMs: 12000 }).then(function(ocrRes){
+    if(gen !== _ocrMergeGen){
+      console.log('[AI衣橱] OCR 结果已过期，丢弃 gen=', gen);
+      return;
+    }
+    if(!ocrRes || !ocrRes.ok || !ocrRes.purchaseDate){
+      console.warn('[AI衣橱] OCR 未得到日期', ocrRes && (ocrRes.error || ocrRes.strategy));
+      setBuyDateOcrStatus(
+        ocrRes && ocrRes.timedOut ? '日期识别超时，可手动填写' : '日期识别未完成，可手动填写',
+        'warn',
+      );
+      if(window._clothVisionDraft) window._clothVisionDraft._ocrDatePending = false;
+      return;
+    }
+    console.log('[AI衣橱] OCR purchaseDate=', ocrRes.purchaseDate, ocrRes.strategy);
+    var input = $('#f-buyDate');
+    var cur = input ? String(input.value || '').trim() : '';
+    // 用户已手改（与 Vision 基线不同）则不覆盖
+    if(input && cur && cur !== baselineBuyDate){
+      console.log('[AI衣橱] 用户已改购买日期，跳过 OCR 写回', cur);
+      setBuyDateOcrStatus('已保留你填写的日期（OCR 未覆盖）', 'mute');
+      if(window._clothVisionDraft){
+        window._clothVisionDraft._ocrDatePending = false;
+        window._clothVisionDraft._ocrPurchaseDateSkipped = ocrRes.purchaseDate;
+      }
+      return;
+    }
+    if(window._clothVisionDraft){
+      mergeOcrPurchaseDateIntoCloth(window._clothVisionDraft, ocrRes.purchaseDate);
+    }
+    if(input){
+      input.value = ocrRes.purchaseDate;
+      input.classList.remove('text-mute');
+    }
+    setBuyDateOcrStatus('日期已更新（OCR）：'+ocrRes.purchaseDate, 'ok');
+    toast('购买日期已更新');
+  }).catch(function(err){
+    if(gen !== _ocrMergeGen) return;
+    console.warn('[AI衣橱] OCR 异常', err);
+    setBuyDateOcrStatus('日期识别失败，可手动填写', 'warn');
+    if(window._clothVisionDraft) window._clothVisionDraft._ocrDatePending = false;
+  });
+}
+
 /* ---------- 存储结构 ---------- */
 var DEFAULT_STORE = {
   version: 1,
   // aiConfig 含 apiKey：仅会话内存，禁止同步到 D1
   // cloudEnabled 默认 true：生产走 Worker AI Proxy，用户无需填写 apiKey
-  aiConfig: { cloudEnabled: true, apiKey: '', apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions', modelName: 'glm-4v-flash' },
+  // visionPipeline: beta1=原 AI_PROMPT；beta2=原文+最小增量+OCR日期（可回滚）
+  aiConfig: {
+    cloudEnabled: true,
+    apiKey: '',
+    apiUrl: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    modelName: 'glm-4v-flash',
+    visionPipeline: 'beta2',
+  },
   profile: { avatar:'', name:'', age:'', mbti:'', city:'北京', prefStyles:[], tempPrefs:[], tempPref:'', concerns:'', idealStyles:[], idealText:'', analysisStartDate:'', cloudSyncEnabled:false, showAlmanac:true },
   customScenes: [],
   weather: { city:'北京', today:{temp:null,cond:'加载中…',desc:''}, tomorrow:{temp:null,cond:'加载中…',desc:''}, manual:false, error:false, loading:true },
@@ -3787,21 +3883,39 @@ function startClothingVisionAssist(photoUrl, opts){
 
   return ensurePublicClothPhotoUrl(photoUrl).then(function(publicUrl){
     window._formPhoto = publicUrl;
-    resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>AI 正在理解图片…</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
+    var pipeline = getVisionPipeline();
+    var statusTip = pipeline === 'beta2'
+      ? 'AI 正在理解图片…（Beta2.2）'
+      : 'AI 正在理解图片…（Beta1）';
+    resultArea.innerHTML = '<div class="flex items-center gap-2 text-sm text-brand-dark py-3"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'+esc(statusTip)+'</div>'+photoImgHtml(publicUrl, 'form-cloth-photo');
     bindPhotoFallbacks(resultArea);
     var localPromise = opts.local ? Promise.resolve(opts.local) : loadImageFromUrl(publicUrl).catch(function(){ return null; });
-    return callVisionAPI(publicUrl, AI_PROMPT, store.aiConfig).then(function(text){
+    // P0：仅等 Vision；OCR 在表单展示后后台 merge，不得 Promise.all 阻塞
+    // Vision 默认 20s AbortController timeout（external.callVisionAPI）
+    return callVisionAPI(publicUrl, activeVisionPrompt(), store.aiConfig).then(function(text){
       console.log('[AI衣橱] 模型返回原始response:', text);
       var aiResult = markClothFieldsFromAi(parseAIResponse(text));
       aiResult.photo = publicUrl;
       var base = opts.baseDraft || window._clothVisionDraft || null;
       var merged = base ? mergeClothVisionFields(base, aiResult) : aiResult;
       merged.photo = publicUrl;
+      if(pipeline === 'beta2'){
+        merged._ocrDatePending = true;
+      }
       return localPromise.then(function(local){
-        return runAIParseToPreview(merged, publicUrl, local, resultArea, opts.successTip, opts.formOpts);
+        // 先出表单（含裁剪异步）；OCR 并行后台，不 await
+        if(pipeline === 'beta2'){
+          scheduleOcrPurchaseDateMerge(publicUrl, merged);
+        }
+        return Promise.resolve(runAIParseToPreview(merged, publicUrl, local, resultArea, opts.successTip, opts.formOpts));
       });
     }).catch(function(err){
-      toast('识别失败：'+(err.message||err)+'，已保留图片与已填字段');
+      var msg = String((err && err.message) || err || '');
+      var isTimeout = /识别超时|timeout|abort/i.test(msg);
+      console.warn('[AI衣橱] Vision 主流程失败', isTimeout ? '(timeout)' : '', msg);
+      toast(isTimeout
+        ? (msg || '识别超时，请重试或手动填写')
+        : ('识别失败：'+msg+'，已保留图片与已填字段'));
       if(opts.preserveFormOnFail && opts.baseDraft){
         var keep = Object.assign({}, opts.baseDraft, { photo: publicUrl });
         keep._fieldSources = getClothFieldSources(opts.baseDraft);
@@ -3810,13 +3924,19 @@ function startClothingVisionAssist(photoUrl, opts){
         window._formPhoto = publicUrl;
         window._clothVisionDraft = keep;
         if(resultArea){
-          resultArea.innerHTML = '<div class="text-xs text-mute mb-2">识别未成功，已保留新图与原有填写，请继续编辑</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
+          resultArea.innerHTML = '<div class="text-xs text-mute mb-2">'+(isTimeout
+            ? '识别超时，已保留新图与原有填写，请继续编辑或重试'
+            : '识别未成功，已保留新图与原有填写，请继续编辑')+'</div>'+photoImgHtml(publicUrl, 'form-cloth-photo mb-3');
           bindPhotoFallbacks(resultArea);
         }
         renderClothForm(keep, !!(keep.name || keep.category || keep.color || keep._fieldSources), opts.formOpts || {});
         return;
       }
-      fallbackManualClothForm(publicUrl, resultArea, '识别未成功，已保留图片，请手动填写后入库');
+      fallbackManualClothForm(
+        publicUrl,
+        resultArea,
+        isTimeout ? '识别超时，已保留图片，请重试或手动填写后入库' : '识别未成功，已保留图片，请手动填写后入库',
+      );
     });
   }).catch(function(err){
     toast('图片准备失败：'+(err.message||err));
@@ -3856,6 +3976,11 @@ function finishAIClothPreview(parsed, photoUrl, resultArea, tip, formOpts){
   }
   if(parsed.fabric){
     hint += ' · 材质：'+parsed.fabric;
+  }
+  if(parsed._ocrPurchaseDate || (parsed._fieldSources && parsed._fieldSources.buyDate === 'ocr')){
+    hint += ' · 购买日期(OCR)：'+(parsed.buyDate || parsed._ocrPurchaseDate || '');
+  } else if(parsed._ocrDatePending){
+    hint += ' · 购买日期识别中…';
   }
   if(parsed.styleTags && parsed.styleTags.length){
     hint += ' · 风格参考：'+parsed.styleTags.join('、');
@@ -4107,7 +4232,14 @@ function renderClothForm(existing, isAI, opts){
   if(c.fabric && fabricOpts.indexOf(c.fabric)<0) fabricOpts = [c.fabric].concat(fabricOpts);
   html += selectInputEmpty('f-fabric','面料',fabricOpts,c.fabric||'');
   var buyDateVal = c.buyDate || '';
-  html += '<div><div class="text-xs text-mute mb-1">购买时间'+(isAI?' <span class="text-warn">⚠️淘宝截图常缺年份，请核对</span>':'')+'</div><input id="f-buyDate" type="date" class="w-full bg-white rounded-xl border border-line p-3 text-sm '+(buyDateVal?'':'text-mute')+'" value="'+esc(buyDateVal)+'" placeholder="选填" /></div>';
+  var ocrPending = !!(isAI && c._ocrDatePending && !c._ocrPurchaseDate);
+  var ocrDone = !!(isAI && c._ocrPurchaseDate);
+  html += '<div><div class="text-xs text-mute mb-1">购买时间'+(isAI?' <span class="text-warn">⚠️淘宝截图常缺年份，请核对</span>':'')+'</div>';
+  html += '<input id="f-buyDate" type="date" class="w-full bg-white rounded-xl border border-line p-3 text-sm '+(buyDateVal?'':'text-mute')+'" value="'+esc(buyDateVal)+'" placeholder="选填" />';
+  html += '<div id="f-buyDate-ocr-status" class="text-xs mt-1 '+(ocrDone?'text-brand-dark':(ocrPending?'text-mute':'text-mute'))+'">';
+  if(ocrPending) html += '日期识别中…';
+  else if(ocrDone) html += '日期已更新（OCR）：'+esc(c._ocrPurchaseDate);
+  html += '</div></div>';
   var priceVal = (c.price!=null && c.price!=='') ? c.price : '';
   html += '<div><div class="text-xs text-mute mb-1">购买价格</div><input id="f-price" type="number" class="w-full bg-white rounded-xl border border-line p-3 text-sm '+(priceVal!==''?'':'text-mute')+'" value="'+esc(priceVal)+'" placeholder="选填" /></div>';
   // 状态（仅编辑时显示）
@@ -5468,6 +5600,20 @@ function viewSettings(){
   html += '<div class="text-xs text-mute leading-relaxed">主屏幕打开时可用「同步云端数据」拉取最新衣物与打卡；「检查应用更新」用于获取 Vercel 新版本。</div>';
   html += '</div>';
 
+  // Vision 管道：Beta1 / Beta2.2（会话开关，可回滚；不写 D1）
+  var pipe = getVisionPipeline();
+  html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-3" id="vision-pipeline-config">';
+  html += '<div class="text-sm font-semibold">衣橱识别版本</div>';
+  html += '<label class="flex items-start gap-2 text-sm text-ink cursor-pointer">';
+  html += '<input type="radio" name="vision-pipeline" id="vision-pipe-beta2" value="beta2" class="mt-1"'+(pipe==='beta2'?' checked':'')+' />';
+  html += '<span><span class="font-medium">Beta2.2（推荐）</span><span class="block text-xs text-mute mt-0.5">生产 Prompt + 商品主体/字段独立最小增量 + OCR 购买日期</span></span></label>';
+  html += '<label class="flex items-start gap-2 text-sm text-ink cursor-pointer">';
+  html += '<input type="radio" name="vision-pipeline" id="vision-pipe-beta1" value="beta1" class="mt-1"'+(pipe==='beta1'?' checked':'')+' />';
+  html += '<span><span class="font-medium">Beta1（回滚）</span><span class="block text-xs text-mute mt-0.5">仅原生产 AI_PROMPT，无 OCR 日期 merge</span></span></label>';
+  html += '<button type="button" id="vision-pipe-save" class="w-full bg-brand-soft text-brand-dark rounded-xl py-2.5 text-sm font-medium">应用识别版本</button>';
+  html += '<div class="text-xs text-mute leading-relaxed">仅保存在当前页面会话，刷新后默认 Beta2.2。不写入云端。</div>';
+  html += '</div>';
+
   // DEV only：AI 测试配置（会话内存；不写 D1、不上传 apiKey）
   if(isDevAiConfigUi()){
     var ai = store.aiConfig || {};
@@ -5482,6 +5628,14 @@ function viewSettings(){
     html += '<div class="text-xs text-mute leading-relaxed">不写入数据库、不同步云端；刷新页面后需重新填写。生产构建不会显示本区块。</div>';
     html += '</div>';
   }
+
+  // 当前版本信息（只读展示）
+  html += '<div class="bg-white rounded-2xl border border-line p-4 space-y-2" id="app-version-info">';
+  html += '<div class="text-sm font-semibold">当前版本</div>';
+  html += '<div class="text-sm text-ink">应用版本 <span class="font-medium">'+esc(APP_VERSION_LABEL)+'</span></div>';
+  html += '<div class="text-sm text-ink">衣橱识别 <span class="font-medium">'+esc(AI_RELEASE_NAME)+'</span>（默认开启，可在上方切换回 Beta1）</div>';
+  html += '<div class="text-xs text-mute leading-relaxed">含商品主体分类增量、字段独立性约束、OCR 购买日期后台 merge；Vision 20s / OCR 12s 超时。</div>';
+  html += '</div>';
 
   html += '<div class="text-center text-xs text-mute py-2">衣物数据保存在云端 API</div>';
   html += '<div class="h-6"></div></div>';
@@ -5595,6 +5749,17 @@ function bindSettings(){
       // 'updated' 会弹出确认框并由 SW 刷新页面
     });
   });
+
+  var visionPipeSave = $('#vision-pipe-save');
+  if(visionPipeSave){
+    visionPipeSave.addEventListener('click', function(){
+      var beta2 = $('#vision-pipe-beta2');
+      var next = (beta2 && beta2.checked) ? 'beta2' : 'beta1';
+      store.aiConfig = store.aiConfig || {};
+      store.aiConfig.visionPipeline = next;
+      toast(next === 'beta2' ? '已切换到 Beta2.2（含 OCR 日期）' : '已回滚到 Beta1');
+    });
+  }
 
   var devAiSave = $('#dev-ai-save');
   if(devAiSave){
