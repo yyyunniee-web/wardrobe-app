@@ -28,9 +28,6 @@ function stampServiceWorker(): Plugin {
   };
 }
 
-const WORKER_ORIGIN = 'https://wardrobe-api.yyyunniee.workers.dev';
-const R2_ORIGIN = 'https://pub-ab5fbb0dc5a94486aad97da609e95b55.r2.dev';
-
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react(), stampServiceWorker()],
@@ -41,33 +38,5 @@ export default defineConfig({
   },
   optimizeDeps: {
     exclude: ['lucide-react'],
-  },
-  server: {
-    proxy: {
-      '/api': {
-        target: WORKER_ORIGIN,
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ''),
-      },
-      '/media': {
-        target: R2_ORIGIN,
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/media/, ''),
-      },
-    },
-  },
-  preview: {
-    proxy: {
-      '/api': {
-        target: WORKER_ORIGIN,
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/api/, ''),
-      },
-      '/media': {
-        target: R2_ORIGIN,
-        changeOrigin: true,
-        rewrite: (p) => p.replace(/^\/media/, ''),
-      },
-    },
   },
 });

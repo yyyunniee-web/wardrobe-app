@@ -1,5 +1,6 @@
 /**
- * 图片 URL：展示走同源/自定义域；存库与 Worker 拉取仍用可直达的绝对地址。
+ * 图片 URL：存库保持 canonical（通常为 R2 绝对地址）；展示可按需改写。
+ * v0.2.3-hotfix：默认不改写，浏览器直连 R2。
  */
 import { IMG_PUBLIC_BASE, R2_PUBLIC_HOST } from '@/config/endpoints';
 
@@ -13,13 +14,20 @@ function isR2Host(hostname: string): boolean {
   return h === R2_PUBLIC_HOST.toLowerCase() || h.endsWith('.r2.dev');
 }
 
+function r2AbsoluteFromMediaPath(pathname: string, search: string): string {
+  const objectPath = pathname.slice('/media'.length) || '/';
+  return `https://${R2_PUBLIC_HOST}${objectPath}${search}`;
+}
+
 /** 仅规范化空白；不改写域名（写入 DB / 队列保持 canonical） */
 export function normalizePublicUrl(url: unknown): string {
   return trimUrl(url);
 }
 
 /**
- * 浏览器 <img> / OCR 用：把历史 r2.dev 改写到 IMG_PUBLIC_BASE。
+ * 浏览器 <img> / OCR 用。
+ * - IMG_PUBLIC_BASE 为空：直连原 URL；若误为 /media/* 则还原为 R2
+ * - IMG_PUBLIC_BASE 有值：把 r2.dev 改写到该基址（同源反代或自定义图床域）
  */
 export function toDisplayPhotoUrl(url: unknown): string {
   const raw = trimUrl(url);
@@ -32,17 +40,20 @@ export function toDisplayPhotoUrl(url: unknown): string {
         ? location.href
         : 'https://localhost/';
     const parsed = new URL(raw, base);
+    const path = parsed.pathname || '/';
 
-    if (parsed.pathname.startsWith('/media/')) {
-      // 已是同源 media 路径
-      return `${parsed.pathname}${parsed.search}`;
+    if (path.startsWith('/media/')) {
+      if (!IMG_PUBLIC_BASE) {
+        return r2AbsoluteFromMediaPath(path, parsed.search);
+      }
+      return `${path}${parsed.search}`;
+    }
+
+    if (!IMG_PUBLIC_BASE) {
+      return raw;
     }
 
     if (isR2Host(parsed.hostname)) {
-      const path = parsed.pathname || '/';
-      if (IMG_PUBLIC_BASE.startsWith('http')) {
-        return `${IMG_PUBLIC_BASE}${path}${parsed.search}`;
-      }
       return `${IMG_PUBLIC_BASE}${path}${parsed.search}`;
     }
   } catch {
@@ -52,7 +63,7 @@ export function toDisplayPhotoUrl(url: unknown): string {
 }
 
 /**
- * Worker /ai/vision 拉取用：同源 /media 还原为 R2 绝对地址（Worker 侧可稳定访问 R2）。
+ * Worker /ai/vision 拉取用：相对 /media 或自定义图床域还原为 R2 绝对地址。
  */
 export function toWorkerFetchUrl(url: unknown): string {
   const raw = trimUrl(url);
@@ -68,8 +79,7 @@ export function toWorkerFetchUrl(url: unknown): string {
     const path = parsed.pathname || '/';
 
     if (path.startsWith('/media/')) {
-      const objectPath = path.slice('/media'.length) || '/';
-      return `https://${R2_PUBLIC_HOST}${objectPath}${parsed.search}`;
+      return r2AbsoluteFromMediaPath(path, parsed.search);
     }
 
     if (IMG_PUBLIC_BASE.startsWith('http')) {

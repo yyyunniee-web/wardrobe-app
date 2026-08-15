@@ -1,7 +1,8 @@
 /**
- * 大陆访问：默认把 API / 图片收敛到前端同源路径，
- * 由 Vercel（或 Vite dev proxy）反代到 Worker / R2。
- * 也可通过环境变量改回直连或自定义域名。
+ * 访问入口配置。
+ *
+ * v0.2.3-hotfix：默认恢复直连 Worker / R2（与 v0.2.2 数据面一致）。
+ * 国内 CDN / 自定义域就绪后，可通过 VITE_* 再切回同源 /api、/media。
  */
 
 const trimSlash = (s: string) => s.replace(/\/$/, '');
@@ -11,7 +12,7 @@ export const R2_PUBLIC_HOST =
   (import.meta.env.VITE_R2_PUBLIC_HOST as string | undefined)?.trim() ||
   'pub-ab5fbb0dc5a94486aad97da609e95b55.r2.dev';
 
-/** Worker 直连基址（反代目标 / 回退） */
+/** Worker 直连基址 */
 export const WORKER_ORIGIN =
   trimSlash(
     (import.meta.env.VITE_WORKER_ORIGIN as string | undefined)?.trim() ||
@@ -20,17 +21,17 @@ export const WORKER_ORIGIN =
 
 /**
  * 浏览器侧 API 基址。
- * 生产默认 `/api`（同源），避免直连 workers.dev。
+ * hotfix 默认：直连 Worker（不再走 Vercel /api）。
  */
 export const API_BASE = trimSlash(
-  (import.meta.env.VITE_API_BASE as string | undefined)?.trim() || '/api',
+  (import.meta.env.VITE_API_BASE as string | undefined)?.trim() || WORKER_ORIGIN,
 );
 
 /**
  * 浏览器侧图片公网基址。
- * 生产默认 `/media`（同源反代 R2），避免直连 r2.dev。
- * 也可设为 `https://img.example.com`。
+ * hotfix 默认：空 = 不改写，直接使用 R2 URL。
+ * 可选：`/media` 或 `https://img.example.com`（需配合反代/CDN）。
  */
 export const IMG_PUBLIC_BASE = trimSlash(
-  (import.meta.env.VITE_IMG_PUBLIC_BASE as string | undefined)?.trim() || '/media',
+  (import.meta.env.VITE_IMG_PUBLIC_BASE as string | undefined)?.trim() || '',
 );

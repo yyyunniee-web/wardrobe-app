@@ -27,15 +27,5 @@
         }
       ]
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "https://wardrobe-api.yyyunniee.workers.dev/:path*"
-    },
-    {
-      "source": "/media/:path*",
-      "destination": "https://pub-ab5fbb0dc5a94486aad97da609e95b55.r2.dev/:path*"
-    }
   ]
 }
